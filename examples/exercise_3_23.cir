@@ -1,0 +1,8 @@
+* Schaum Basic Circuit Analysis, Exercise 3.23 / Fig. 3-10.
+* Query V a b for the voltage across the open circuit.
+V100 src 0 100
+R40 src mid 40
+R60 mid 0 60
+R10 mid n30 10
+V30 a n30 30
+V10 b 0 10

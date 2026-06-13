@@ -1,0 +1,9 @@
+* Schaum Basic Circuit Analysis, Exercise 3.21.
+* A 90 V source is in series with 4, 5, 6, 7, and 8 ohm resistors.
+* Query V n5 n6 for the voltage across the 6 ohm resistor.
+V90 src 0 90
+R4 src n4 4
+R5 n4 n5 5
+R6 n5 n6 6
+R7 n6 n7 7
+R8 n7 0 8

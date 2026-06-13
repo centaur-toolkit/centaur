@@ -1,0 +1,8 @@
+* Topology rewrite demo with several R-only rules.
+* Protect node "out" when rewriting so it remains an observable terminal.
+V1 in 0 Vin
+R1 in mid R1
+R2 mid out R2
+R3 in out R3
+Rshort out out Rshort
+Rdead out dead Rdead

@@ -1,0 +1,11 @@
+* Schaum Basic Circuit Analysis, Exercise 3.22 / Fig. 3-8.
+* Query V4 as V(r6bot, v8right), matching the + on the right of the 8 ohm resistor.
+* Query V5 as V(0, v8left), matching the + on the left of the 11 ohm resistor.
+V12 src 0 12
+R10 src a 10
+R15 a v5left 15
+V5SRC v5left rtop 5
+R6 rtop r6bot 6
+R8 v8right r6bot 8
+V8 v8left v8right 8
+R11 v8left 0 11

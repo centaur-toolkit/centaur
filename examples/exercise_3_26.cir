@@ -1,0 +1,8 @@
+* Schaum Basic Circuit Analysis, Exercise 3.26 / Fig. 3-12.
+* Eleft imposes V(dep_top, 0) = 4 * V(v1, 0).
+* Fdep current from v1 to 0 is 0.5 * I1, where I1 is the R16 branch current.
+V24 src 0 24
+R16 src dep_top 16
+Eleft dep_top 0 v1 0 4
+Fdep v1 0 R16 0.5
+R4 v1 0 4

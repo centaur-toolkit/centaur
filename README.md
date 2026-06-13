@@ -1,0 +1,251 @@
+# Centaur
+
+Centaur is a C++ prototype for symbolic analog-circuit analysis and topology
+rewriting. The goal is Herbie-like exploration for circuit structure: keep the
+input close to textbook circuits, infer useful equivalent forms, and produce
+readable expressions such as `vdiv`, `par`, and simplified Thevenin results.
+
+Centaur currently focuses on linear DC/resistive circuits with independent and
+linear dependent sources. It combines three pieces:
+
+- a SPICE-like netlist parser
+- symbolic modified nodal analysis (MNA)
+- equality-saturation and topology rewrite passes
+
+## Status
+
+Implemented today:
+
+- symbolic expressions with local simplification
+- egg-style e-graph rewrites for common analog forms
+- Thevenin equivalent calculation
+- operating-point node voltages, branch currents, powers, and source seen
+  resistance
+- topology rewrites for series/parallel resistors and ideal-source patterns
+- independent voltage/current sources
+- voltage-controlled voltage/current sources
+- current-controlled current sources using component current references
+- regression examples from Schaum Basic Circuit Analysis exercises 3.20-3.28
+
+This is still a prototype. The current solver is linear and DC-oriented; AC
+impedance forms are present in the expression rewrite layer, but not yet a full
+frequency-domain circuit frontend.
+
+## Build
+
+```sh
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+The main executable is:
+
+```sh
+./build/centaur
+```
+
+## Quick Examples
+
+Optimize a symbolic expression:
+
+```sh
+./build/centaur '(mul Vin (div R2 (add R1 R2)))'
+```
+
+Output:
+
+```text
+(vdiv Vin R1 R2)
+```
+
+Compute a Thevenin equivalent:
+
+```sh
+./build/centaur --thevenin examples/voltage_divider.cir out 0
+```
+
+Output:
+
+```text
+Vth out 0: (vdiv Vin R1 R2)
+Rth out 0: (par R1 R2)
+```
+
+Solve selected textbook quantities:
+
+```sh
+./build/centaur --solve examples/exercise_3_28.cir \
+  --voltage a 0 \
+  --current R9 \
+  --current R13
+```
+
+Output:
+
+```text
+V a 0: -35
+I R9: 0
+I R13: 0
+```
+
+Use `--explain` to see topology and expression rewrite activity:
+
+```sh
+./build/centaur --explain --solve examples/exercise_3_28.cir --voltage a 0
+```
+
+## Netlist Format
+
+The parser accepts a compact SPICE-like format:
+
+```text
+Rname node+ node- value
+Vname node+ node- value
+Iname node+ node- value
+Ename node+ node- ctrl+ ctrl- gain
+Gname node+ node- ctrl+ ctrl- gain
+Fname node+ node- control-component gain
+```
+
+Component meanings:
+
+- `R`: resistor
+- `V`: independent voltage source
+- `I`: independent current source
+- `E`: voltage-controlled voltage source
+- `G`: voltage-controlled current source
+- `F`: current-controlled current source
+
+For `F`, the control is another component name. For example:
+
+```text
+Fdep v1 0 R16 0.5
+```
+
+means:
+
+```text
+I(Fdep from v1 to 0) = 0.5 * I(R16)
+```
+
+Values may be numeric atoms such as `10`, or symbolic atoms such as `R1`,
+`Vin`, and `gm`.
+
+Ground may be written as `0`, `gnd`, or `GND`.
+
+## Commands
+
+Solve an operating point:
+
+```sh
+./build/centaur --solve file.cir
+```
+
+With no explicit queries, Centaur prints node voltages relative to ground and
+resistor currents. With explicit queries, it prints only the requested values:
+
+```sh
+./build/centaur --solve file.cir \
+  --voltage node+ node- \
+  --current component \
+  --power component \
+  --seen-resistance Vsource
+```
+
+Compute a Thevenin equivalent:
+
+```sh
+./build/centaur --thevenin file.cir node+ node-
+```
+
+Run only the topology prepass:
+
+```sh
+./build/centaur --rewrite-topology file.cir protected-node ...
+```
+
+Protected nodes are observed terminals; the topology pass avoids removing or
+contracting them.
+
+## Topology Rewrites
+
+Topology rewrites operate on the circuit graph before symbolic MNA. They are
+symbolic: resistor values such as `R1` and `R2` are preserved and combined into
+expressions such as `(par R1 R2)` and `(add R1 R2)`.
+
+Current rules:
+
+- parallel resistors with the same two terminals become one resistor with
+  `(par ...)`
+- series resistors through an unprotected degree-2 node become one resistor
+  with `(add ...)`
+- shorted resistors are removed
+- dangling resistor branches ending at unprotected nodes are removed
+- a resistor in series with an ideal current source is removed and the source is
+  reconnected across the branch
+- a resistor in parallel with an ideal voltage source is removed
+
+The solve path is query-aware. Explicit `--voltage` queries protect their nodes;
+explicit `--current`, `--power`, and `--seen-resistance` queries protect their
+components. This lets Centaur simplify the circuit for a `Vab` query while still
+keeping a resistor if the user asks for that resistor current.
+
+Example:
+
+```sh
+./build/centaur --explain --rewrite-topology examples/exercise_3_28.cir a 0
+```
+
+The topology summary reports two current-source series resistor removals and
+one voltage-source parallel resistor removal.
+
+## Expression Language
+
+Expressions use s-expressions:
+
+```text
+(add a b)
+(sub a b)
+(mul a b)
+(div a b)
+(neg a)
+(inv a)
+(par R1 R2)
+(vdiv Vin Rtop Rbot)
+(zc C1)
+(zl L1)
+```
+
+The rewrite rules include algebraic identities, parallel impedance forms,
+voltage-divider recognition, capacitor/inductor impedance forms, RC low-pass
+forms, and a common-source gain idiom.
+
+## Textbook Examples
+
+The `examples/` directory includes checked examples from Schaum Basic Circuit
+Analysis:
+
+```sh
+./build/centaur --solve examples/exercise_3_20.cir \
+  --current R10 --current R25 --voltage top n15
+
+./build/centaur --solve examples/exercise_3_26.cir \
+  --voltage v1 0 --current R16 --current Fdep
+
+./build/centaur --solve examples/exercise_3_28.cir \
+  --voltage a 0 --current R9 --current R13
+```
+
+These are also covered by CTest.
+
+## Project Direction
+
+Near-term work:
+
+- add more source-control forms, including current-controlled voltage sources
+- improve symbolic linear solving to avoid floating-point artifacts
+- add typed symbols and dimensions
+- extend the frontend toward impedance-domain `Z` circuits
+- integrate `c-spice` as an optional parser/simulation frontend
+- grow the textbook regression suite into a rule-discovery harness

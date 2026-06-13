@@ -1,0 +1,7 @@
+* Topology rewrite demo.
+* Rb1 and Rb2 have the same two terminals, so they can become one resistor:
+* Rpar1 out 0 (par Rb1 Rb2)
+V1 in 0 Vin
+Rtop in out Rtop
+Rb1 out 0 Rb1
+Rb2 out 0 Rb2

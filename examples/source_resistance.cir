@@ -1,0 +1,4 @@
+* Thevenin seen at out relative to ground.
+* Expected: Vth = Vin, Rth = Rs.
+V1 src 0 Vin
+Rs src out Rs

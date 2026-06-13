@@ -1,0 +1,10 @@
+* Schaum Basic Circuit Analysis, Exercise 3.27 / Fig. 3-13.
+* Node 0 is the bottom node b. I is the R8 current from left to top.
+V100 n100 0 100
+R2 n100 left 2
+R8 left top 8
+R5 top right 5
+V20 rmid right 20
+R9 rmid 0 9
+V30 top mid 30
+R10 mid a 10

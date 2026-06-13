@@ -1,0 +1,12 @@
+* Schaum Basic Circuit Analysis, Exercise 3.28 / Fig. 3-14.
+* Node 0 is the bottom terminal b. Vab is V(a, 0).
+R10 a top 10
+R4 a left_source 4
+I6 left_source top 6
+R5 top right 5
+I8 right_source top 8
+R11 right_source right 11
+R9 right bottom_right 9
+V15 bottom_left bottom_right 15
+R18 bottom_left bottom_right 18
+R13 0 bottom_left 13

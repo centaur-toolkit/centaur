@@ -1,0 +1,5 @@
+* Thevenin seen at out relative to ground.
+* Expected: Vth = Vin * R2 / (R1 + R2), Rth = R1 || R2.
+V1 in 0 Vin
+R1 in out R1
+R2 out 0 R2

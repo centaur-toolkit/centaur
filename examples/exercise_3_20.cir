@@ -1,0 +1,9 @@
+* Schaum Basic Circuit Analysis, Exercise 3.20 / Fig. 3-9.
+* I1 is current through R10 from top to 0.
+* I2 is current through R25 from top to n25.
+* V is node voltage top relative to n15.
+V90 top 0 90
+R10 top 0 10
+R25 top n25 25
+V30 n25 n15 30
+R15 n15 0 15

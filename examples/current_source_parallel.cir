@@ -1,0 +1,6 @@
+* Thevenin seen at out relative to ground.
+* Current source flows from ground into out.
+* Expected: Vth = Iin * (R1 || R2), Rth = R1 || R2.
+I1 0 out Iin
+R1 out 0 R1
+R2 out 0 R2
