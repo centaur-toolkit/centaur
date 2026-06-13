@@ -1,0 +1,5 @@
+* Schaum Basic Circuit Analysis, Exercise 3.38.
+* Find the equivalent resistance of 12 ohm, 24 ohm, and 32 ohm resistors in parallel.
+R12 a 0 12
+R24 a 0 24
+R32 a 0 32

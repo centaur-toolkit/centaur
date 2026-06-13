@@ -1,0 +1,4 @@
+* Schaum Basic Circuit Analysis, Exercise 3.37.
+* Find the equivalent resistance of 5 ohm and 20 ohm resistors in parallel.
+R5 a 0 5
+R20 a 0 20

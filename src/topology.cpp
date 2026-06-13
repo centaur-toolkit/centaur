@@ -4,6 +4,7 @@
 #include <optional>
 #include <map>
 #include <set>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -40,6 +41,51 @@ bool is_current_source(const Component& component) {
 bool is_voltage_source(const Component& component) {
     return component.type == ComponentType::VoltageSource ||
            component.type == ComponentType::VoltageControlledVoltageSource;
+}
+
+std::string component_text(const Component& component) {
+    std::ostringstream out;
+    out << component.name << ' ' << component.positive << ' ' << component.negative
+        << ' ';
+    if (component.type == ComponentType::VoltageControlledVoltageSource ||
+        component.type == ComponentType::VoltageControlledCurrentSource) {
+        out << component.control_positive << ' ' << component.control_negative << ' ';
+    } else if (component.type == ComponentType::CurrentControlledCurrentSource) {
+        out << component.control_component << ' ';
+    }
+    out << to_string(component.value);
+    return out.str();
+}
+
+std::string terminals_text(const Component& component) {
+    return component.positive + "-" + component.negative;
+}
+
+bool same_terminal_pair(const Component& lhs, const Component& rhs) {
+    const auto lhs_pair = unordered_pair_key(lhs.positive, lhs.negative);
+    const auto rhs_pair = unordered_pair_key(rhs.positive, rhs.negative);
+    return lhs_pair.first == rhs_pair.first && lhs_pair.second == rhs_pair.second;
+}
+
+bool same_terminal_orientation(const Component& lhs, const Component& rhs) {
+    return lhs.positive == rhs.positive && lhs.negative == rhs.negative;
+}
+
+bool opposite_terminal_orientation(const Component& lhs, const Component& rhs) {
+    return lhs.positive == rhs.negative && lhs.negative == rhs.positive;
+}
+
+std::string join_resistor_values(const std::vector<const Component*>& resistors,
+                                 const std::string& separator) {
+    std::ostringstream out;
+    for (std::size_t i = 0; i < resistors.size(); ++i) {
+        if (i != 0) {
+            out << separator;
+        }
+        out << resistors[i]->name << ' ' << terminals_text(*resistors[i]) << ' '
+            << to_string(resistors[i]->value);
+    }
+    return out.str();
 }
 
 Expr parallel_value(const std::vector<const Component*>& resistors) {
@@ -102,6 +148,11 @@ std::set<std::string> protected_component_set(
     return protected_components;
 }
 
+std::set<std::string> explicit_component_set(
+    const std::vector<std::string>& component_names) {
+    return {component_names.begin(), component_names.end()};
+}
+
 bool is_protected(const std::set<std::string>& protected_nodes,
                   const std::string& node) {
     return is_ground_node(node) || protected_nodes.find(node) != protected_nodes.end();
@@ -114,6 +165,8 @@ bool is_protected_component(const std::set<std::string>& protected_components,
 
 void add_counts(TopologyRewriteResult& total, const TopologyRewriteResult& delta) {
     total.merged_parallel_resistor_groups += delta.merged_parallel_resistor_groups;
+    total.merged_parallel_current_source_groups +=
+        delta.merged_parallel_current_source_groups;
     total.merged_series_resistor_groups += delta.merged_series_resistor_groups;
     total.removed_short_resistors += delta.removed_short_resistors;
     total.removed_zero_voltage_sources += delta.removed_zero_voltage_sources;
@@ -122,7 +175,10 @@ void add_counts(TopologyRewriteResult& total, const TopologyRewriteResult& delta
         delta.removed_current_source_series_resistors;
     total.removed_voltage_source_parallel_resistors +=
         delta.removed_voltage_source_parallel_resistors;
+    total.folded_self_controlled_current_source_groups +=
+        delta.folded_self_controlled_current_source_groups;
     total.removed_components += delta.removed_components;
+    total.trace.insert(total.trace.end(), delta.trace.begin(), delta.trace.end());
 }
 
 TopologyRewriteResult remove_shorted_resistors_once(
@@ -133,6 +189,8 @@ TopologyRewriteResult remove_shorted_resistors_once(
         if (component.type == ComponentType::Resistor &&
             !is_protected_component(protected_components, component) &&
             component.positive == component.negative) {
+            result.trace.push_back("shorted-resistor: removed " +
+                                   component_text(component));
             ++result.removed_short_resistors;
             ++result.removed_components;
             continue;
@@ -198,6 +256,10 @@ TopologyRewriteResult remove_one_zero_voltage_source_once(
         const auto [keep_node, replace_node_name] =
             zero_source_merge_nodes(component, protected_nodes);
 
+        result.trace.push_back("zero-voltage-source: removed " +
+                               component_text(component) + ", merged " +
+                               replace_node_name + " into " + keep_node);
+
         for (std::size_t j = 0; j < circuit.components.size(); ++j) {
             if (j == i) {
                 ++result.removed_zero_voltage_sources;
@@ -248,6 +310,8 @@ TopologyRewriteResult remove_dangling_resistors_once(
 
     for (std::size_t i = 0; i < circuit.components.size(); ++i) {
         if (removed.find(i) != removed.end()) {
+            result.trace.push_back("dangling-resistor: removed " +
+                                   component_text(circuit.components[i]));
             ++result.removed_dangling_resistors;
             ++result.removed_components;
             continue;
@@ -275,6 +339,7 @@ TopologyRewriteResult merge_parallel_resistors_once(const Circuit& circuit,
     std::map<std::size_t, Component> replacements;
     std::set<std::size_t> removed;
     int replacement_id = first_replacement_id;
+    TopologyRewriteResult result;
 
     for (const auto& [nodes, indices] : resistor_groups) {
         if (indices.size() < 2) {
@@ -290,15 +355,199 @@ TopologyRewriteResult merge_parallel_resistors_once(const Circuit& circuit,
         Component merged = *group.front();
         merged.name = "Rpar" + std::to_string(replacement_id++);
         merged.value = parallel_value(group);
+        std::ostringstream trace;
+        trace << "parallel-resistors: " << join_resistor_values(group, " || ")
+              << " -> " << component_text(merged);
         replacements[indices.front()] = merged;
+        replacements[indices.front()].name = merged.name;
+        replacements[indices.front()].value = merged.value;
+        result.trace.push_back(trace.str());
 
         for (std::size_t i = 1; i < indices.size(); ++i) {
             removed.insert(indices[i]);
         }
     }
 
-    TopologyRewriteResult result;
     result.merged_parallel_resistor_groups = static_cast<int>(replacements.size());
+    result.removed_components = static_cast<int>(removed.size());
+
+    for (std::size_t i = 0; i < circuit.components.size(); ++i) {
+        auto replacement = replacements.find(i);
+        if (replacement != replacements.end()) {
+            result.circuit.components.push_back(replacement->second);
+            continue;
+        }
+        if (removed.find(i) == removed.end()) {
+            result.circuit.components.push_back(circuit.components[i]);
+        }
+    }
+
+    return result;
+}
+
+TopologyRewriteResult merge_parallel_current_sources_once(
+    const Circuit& circuit,
+    int first_replacement_id,
+    const std::set<std::string>& protected_components) {
+    std::map<NodePair, std::vector<std::size_t>> source_groups;
+    for (std::size_t i = 0; i < circuit.components.size(); ++i) {
+        const auto& component = circuit.components[i];
+        if (component.type == ComponentType::CurrentSource &&
+            !is_protected_component(protected_components, component)) {
+            source_groups[unordered_pair_key(component.positive, component.negative)]
+                .push_back(i);
+        }
+    }
+
+    std::map<std::size_t, Component> replacements;
+    std::set<std::size_t> removed;
+    int replacement_id = first_replacement_id;
+    TopologyRewriteResult result;
+
+    for (const auto& [nodes, indices] : source_groups) {
+        if (indices.size() < 2) {
+            continue;
+        }
+
+        const auto& reference = circuit.components[indices.front()];
+        Expr value = atom("0");
+        std::ostringstream trace;
+        trace << "parallel-current-sources: ";
+        for (std::size_t group_index = 0; group_index < indices.size();
+             ++group_index) {
+            const auto& source = circuit.components[indices[group_index]];
+            if (group_index != 0) {
+                trace << " || ";
+            }
+            trace << component_text(source);
+
+            if (source.positive == reference.positive &&
+                source.negative == reference.negative) {
+                value = make_add(std::move(value), source.value);
+            } else {
+                value = make_sub(std::move(value), source.value);
+            }
+        }
+
+        Component merged = reference;
+        merged.name = "Ipar" + std::to_string(replacement_id++);
+        merged.value = std::move(value);
+        trace << " -> " << component_text(merged);
+        replacements[indices.front()] = merged;
+        result.trace.push_back(trace.str());
+
+        for (std::size_t i = 1; i < indices.size(); ++i) {
+            removed.insert(indices[i]);
+        }
+    }
+
+    result.merged_parallel_current_source_groups =
+        static_cast<int>(replacements.size());
+    result.removed_components = static_cast<int>(removed.size());
+
+    for (std::size_t i = 0; i < circuit.components.size(); ++i) {
+        auto replacement = replacements.find(i);
+        if (replacement != replacements.end()) {
+            result.circuit.components.push_back(replacement->second);
+            continue;
+        }
+        if (removed.find(i) == removed.end()) {
+            result.circuit.components.push_back(circuit.components[i]);
+        }
+    }
+
+    return result;
+}
+
+TopologyRewriteResult fold_self_controlled_current_sources_once(
+    const Circuit& circuit,
+    const std::set<std::string>& explicit_protected_components) {
+    std::map<std::string, std::size_t> resistor_indices;
+    std::map<std::string, std::vector<std::size_t>> controllers;
+    for (std::size_t i = 0; i < circuit.components.size(); ++i) {
+        const auto& component = circuit.components[i];
+        if (component.type == ComponentType::Resistor) {
+            resistor_indices[component.name] = i;
+        } else if (component.type == ComponentType::CurrentControlledCurrentSource) {
+            controllers[component.control_component].push_back(i);
+        }
+    }
+
+    std::map<std::size_t, Component> replacements;
+    std::set<std::size_t> removed;
+    int folded_groups = 0;
+    TopologyRewriteResult result;
+
+    for (const auto& [resistor_name, source_indices] : controllers) {
+        const auto resistor_found = resistor_indices.find(resistor_name);
+        if (resistor_found == resistor_indices.end()) {
+            continue;
+        }
+
+        const std::size_t resistor_index = resistor_found->second;
+        const auto& resistor = circuit.components[resistor_index];
+        if (is_protected_component(explicit_protected_components, resistor)) {
+            continue;
+        }
+
+        Expr conductance_scale = atom("1");
+        bool foldable = true;
+        std::vector<const Component*> folded_sources;
+        folded_sources.reserve(source_indices.size());
+
+        for (std::size_t source_index : source_indices) {
+            const auto& source = circuit.components[source_index];
+            if (is_protected_component(explicit_protected_components, source) ||
+                !same_terminal_pair(source, resistor)) {
+                foldable = false;
+                break;
+            }
+
+            if (same_terminal_orientation(source, resistor)) {
+                conductance_scale =
+                    make_add(std::move(conductance_scale), source.value);
+            } else if (opposite_terminal_orientation(source, resistor)) {
+                conductance_scale =
+                    make_sub(std::move(conductance_scale), source.value);
+            } else {
+                foldable = false;
+                break;
+            }
+            folded_sources.push_back(&source);
+        }
+
+        if (!foldable || folded_sources.empty()) {
+            continue;
+        }
+
+        std::ostringstream trace;
+        trace << "self-controlled-current-source: " << component_text(resistor)
+              << " with ";
+        for (std::size_t i = 0; i < folded_sources.size(); ++i) {
+            if (i != 0) {
+                trace << " || ";
+            }
+            trace << component_text(*folded_sources[i]);
+        }
+
+        if (is_zero(conductance_scale)) {
+            trace << " -> open";
+            removed.insert(resistor_index);
+        } else {
+            Component merged = resistor;
+            merged.value = make_div(resistor.value, std::move(conductance_scale));
+            trace << " -> " << component_text(merged);
+            replacements[resistor_index] = std::move(merged);
+        }
+
+        for (std::size_t source_index : source_indices) {
+            removed.insert(source_index);
+        }
+        result.trace.push_back(trace.str());
+        ++folded_groups;
+    }
+
+    result.folded_self_controlled_current_source_groups = folded_groups;
     result.removed_components = static_cast<int>(removed.size());
 
     for (std::size_t i = 0; i < circuit.components.size(); ++i) {
@@ -363,6 +612,10 @@ TopologyRewriteResult merge_one_series_resistor_pair(
     merged.negative = other_terminal(second, node);
     merged.value = series_value(first, second);
 
+    result.trace.push_back("series-resistors: " + component_text(first) + " + " +
+                           component_text(second) + " through " + node + " -> " +
+                           component_text(merged));
+
     for (std::size_t i = 0; i < circuit.components.size(); ++i) {
         if (i == first_index) {
             result.circuit.components.push_back(merged);
@@ -416,6 +669,11 @@ TopologyRewriteResult remove_one_resistor_in_series_with_current_source(
             moved_source.negative = external_node;
         }
 
+        result.trace.push_back("current-source-series-resistor: removed " +
+                               component_text(resistor) + ", reconnected " +
+                               component_text(source) + " -> " +
+                               component_text(moved_source));
+
         for (std::size_t i = 0; i < circuit.components.size(); ++i) {
             if (i == source_index) {
                 result.circuit.components.push_back(moved_source);
@@ -458,6 +716,10 @@ TopologyRewriteResult remove_resistors_parallel_with_voltage_sources_once(
             !is_protected_component(protected_components, component) &&
             voltage_source_pairs.find(pair) != voltage_source_pairs.end() &&
             blocked_pairs.find(pair) == blocked_pairs.end()) {
+            result.trace.push_back(
+                "voltage-source-parallel-resistor: removed " +
+                component_text(component) + " across ideal voltage-source terminals " +
+                pair.first + "-" + pair.second);
             ++result.removed_voltage_source_parallel_resistors;
             ++result.removed_components;
             continue;
@@ -480,14 +742,18 @@ TopologyRewriteResult rewrite_topology(
     TopologyRewriteResult total;
     total.circuit = circuit;
     const auto protected_node_names = protected_node_set(circuit, protected_nodes);
-    const auto protected_component_names =
-        protected_component_set(circuit, protected_components);
+    const auto explicit_component_names =
+        explicit_component_set(protected_components);
+    auto protected_component_names = [&]() {
+        return protected_component_set(total.circuit, protected_components);
+    };
 
     for (int iteration = 0; iteration < 64; ++iteration) {
         bool changed = false;
 
         auto shorted =
-            remove_shorted_resistors_once(total.circuit, protected_component_names);
+            remove_shorted_resistors_once(total.circuit,
+                                          protected_component_names());
         if (shorted.removed_components > 0) {
             changed = true;
             total.circuit = std::move(shorted.circuit);
@@ -497,7 +763,7 @@ TopologyRewriteResult rewrite_topology(
         auto zero_voltage = remove_one_zero_voltage_source_once(
             total.circuit,
             protected_node_names,
-            protected_component_names);
+            protected_component_names());
         if (zero_voltage.removed_components > 0) {
             changed = true;
             total.circuit = std::move(zero_voltage.circuit);
@@ -506,7 +772,7 @@ TopologyRewriteResult rewrite_topology(
 
         auto voltage_parallel = remove_resistors_parallel_with_voltage_sources_once(
             total.circuit,
-            protected_component_names);
+            protected_component_names());
         if (voltage_parallel.removed_components > 0) {
             changed = true;
             total.circuit = std::move(voltage_parallel.circuit);
@@ -516,16 +782,26 @@ TopologyRewriteResult rewrite_topology(
         auto current_series = remove_one_resistor_in_series_with_current_source(
             total.circuit,
             protected_node_names,
-            protected_component_names);
+            protected_component_names());
         if (current_series.removed_components > 0) {
             changed = true;
             total.circuit = std::move(current_series.circuit);
             add_counts(total, current_series);
         }
 
+        auto self_controlled_current =
+            fold_self_controlled_current_sources_once(total.circuit,
+                                                      explicit_component_names);
+        if (self_controlled_current.folded_self_controlled_current_source_groups >
+            0) {
+            changed = true;
+            total.circuit = std::move(self_controlled_current.circuit);
+            add_counts(total, self_controlled_current);
+        }
+
         auto dangling = remove_dangling_resistors_once(total.circuit,
                                                        protected_node_names,
-                                                       protected_component_names);
+                                                       protected_component_names());
         if (dangling.removed_components > 0) {
             changed = true;
             total.circuit = std::move(dangling.circuit);
@@ -535,7 +811,7 @@ TopologyRewriteResult rewrite_topology(
         auto series = merge_one_series_resistor_pair(
             total.circuit,
             protected_node_names,
-            protected_component_names,
+            protected_component_names(),
             total.merged_series_resistor_groups + 1);
         if (series.merged_series_resistor_groups > 0) {
             changed = true;
@@ -546,11 +822,21 @@ TopologyRewriteResult rewrite_topology(
         auto parallel = merge_parallel_resistors_once(
             total.circuit,
             total.merged_parallel_resistor_groups + 1,
-            protected_component_names);
+            protected_component_names());
         if (parallel.merged_parallel_resistor_groups > 0) {
             changed = true;
             total.circuit = std::move(parallel.circuit);
             add_counts(total, parallel);
+        }
+
+        auto current_parallel = merge_parallel_current_sources_once(
+            total.circuit,
+            total.merged_parallel_current_source_groups + 1,
+            protected_component_names());
+        if (current_parallel.merged_parallel_current_source_groups > 0) {
+            changed = true;
+            total.circuit = std::move(current_parallel.circuit);
+            add_counts(total, current_parallel);
         }
 
         if (!changed) {

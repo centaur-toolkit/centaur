@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.48 / Fig. 3-23.
+* Values use mA and kOhm, so resistor drops are in volts.
+I40 0 mid 40
+V900 top mid 900
+R5 top 0 5
+R20 top 0 20

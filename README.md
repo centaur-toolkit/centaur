@@ -28,7 +28,7 @@ Implemented today:
 - independent voltage/current sources
 - voltage-controlled voltage/current sources
 - current-controlled current sources using component current references
-- regression examples from Schaum Basic Circuit Analysis exercises 3.20-3.35
+- regression examples from Schaum Basic Circuit Analysis exercises 3.20-3.48
 
 This is still a prototype. The current solver is linear and DC-oriented; AC
 impedance forms are present in the expression rewrite layer, but not yet a full
@@ -92,7 +92,7 @@ I R9: 0
 I R13: 0
 ```
 
-Use `--explain` to see topology and expression rewrite activity:
+Use `--explain` to see topology trace lines and expression rewrite activity:
 
 ```sh
 ./build/centaur --explain --solve examples/exercise_3_28.cir --voltage a 0
@@ -187,6 +187,12 @@ Infer a value from a target Thevenin resistance:
 ./build/centaur --solve-rth-for file.cir node+ node- R '(eq Rth 12000)'
 ```
 
+The `Rth` atom may appear anywhere in the equation expression:
+
+```sh
+./build/centaur --solve-rth-for file.cir node+ node- R '(eq (inv Rth) 1.75)'
+```
+
 Run only the topology prepass:
 
 ```sh
@@ -227,7 +233,18 @@ Example:
 ```
 
 The topology summary reports two current-source series resistor removals and
-one voltage-source parallel resistor removal.
+one voltage-source parallel resistor removal. For ladder-style reductions,
+`--explain` also prints each topology rewrite step:
+
+```sh
+./build/centaur --explain --rewrite-topology examples/exercise_3_41.cir a 0
+```
+
+Example trace line:
+
+```text
+series-resistors: R4 inner tail 4 + R8 tail right 8 through tail -> Rser2 inner right 12
+```
 
 ## Expression Language
 
@@ -255,6 +272,7 @@ Equation queries are ordinary expressions:
 ```text
 (eq (par 10000 20000 R) 12000)
 (eq Rth 12000)
+(eq (inv Rth) 1.75)
 ```
 
 ## Textbook Examples
@@ -274,6 +292,9 @@ Analysis:
 
 ./build/centaur --solve-rth-for examples/exercise_3_35.cir \
   a 0 R '(eq Rth 12000)'
+
+./build/centaur --solve-rth-for examples/exercise_3_36.cir \
+  a 0 R '(eq (inv Rth) 1.75)'
 ```
 
 These are also covered by CTest.

@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.40.
+* Determine RT for (4 + (24 || 12)) || 6.
+R4 a mid 4
+R24 mid 0 24
+R12 mid 0 12
+R6 a 0 6

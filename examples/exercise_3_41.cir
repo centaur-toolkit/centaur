@@ -1,0 +1,10 @@
+* Schaum Basic Circuit Analysis, Exercise 3.41 / Fig. 3-19.
+* Ladder: 16 + (5 || (9 + 3 + (24 || (4 + 8)))) + 14.
+R16 a left 16
+R14 right 0 14
+R5 left right 5
+R9 left n9 9
+R3 n9 inner 3
+R24 inner right 24
+R4 inner tail 4
+R8 tail right 8

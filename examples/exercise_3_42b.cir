@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.42(b) / Fig. 3-20.
+* Terminals a and b are shorted: (40 || 60) + (90 || 10).
+R40 in shorted 40
+R60 in shorted 60
+R90 shorted 0 90
+R10 shorted 0 10

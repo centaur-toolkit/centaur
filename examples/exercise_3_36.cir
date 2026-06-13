@@ -1,0 +1,5 @@
+* Schaum Basic Circuit Analysis, Exercise 3.36.
+* Find R such that 1 ohm, 2 ohm, and R in parallel have total conductance 1.75 S.
+R1 a 0 1
+R2 a 0 2
+Rx a 0 R

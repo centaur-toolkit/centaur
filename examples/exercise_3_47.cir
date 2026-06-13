@@ -1,0 +1,8 @@
+* Schaum Basic Circuit Analysis, Exercise 3.47 / Fig. 3-22.
+* V2 is the voltage at the top of the 9-A source. V1 is the top right node.
+* Fdep is the downward dependent current source 3I, controlled by I through R5.
+I9 0 v2 9
+R12 v2 v1 12
+R5 v1 0 5
+R10 v1 0 10
+Fdep v1 0 R5 3

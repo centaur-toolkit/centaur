@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.42(a) / Fig. 3-20.
+* Terminals a and b are open: (40 + 90) || (60 + 10).
+R40 in a 40
+R90 a 0 90
+R60 in b 60
+R10 b 0 10

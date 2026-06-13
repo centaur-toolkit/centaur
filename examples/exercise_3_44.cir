@@ -1,0 +1,9 @@
+* Schaum Basic Circuit Analysis, Exercise 3.44 / Fig. 3-21.
+* Conductances are modeled as resistances R = 1/G.
+I190 0 top 190
+I50 top 0 50
+I60 0 top 60
+R6 top 0 (inv 6)
+R12 0 top (inv 12)
+R24 top 0 (inv 24)
+R8 0 top (inv 8)

@@ -40,6 +40,8 @@ void print_topology_summary(const analog::TopologyRewriteResult& topology,
     std::cerr << prefix << "topology iterations: " << topology.iterations << '\n';
     std::cerr << prefix << "topology parallel resistor groups merged: "
               << topology.merged_parallel_resistor_groups << '\n';
+    std::cerr << prefix << "topology parallel current source groups merged: "
+              << topology.merged_parallel_current_source_groups << '\n';
     std::cerr << prefix << "topology series resistor groups merged: "
               << topology.merged_series_resistor_groups << '\n';
     std::cerr << prefix << "topology shorted resistors removed: "
@@ -52,8 +54,17 @@ void print_topology_summary(const analog::TopologyRewriteResult& topology,
               << topology.removed_current_source_series_resistors << '\n';
     std::cerr << prefix << "topology voltage-source parallel resistors removed: "
               << topology.removed_voltage_source_parallel_resistors << '\n';
+    std::cerr << prefix << "topology self-controlled current source groups folded: "
+              << topology.folded_self_controlled_current_source_groups << '\n';
     std::cerr << prefix << "topology components removed: "
               << topology.removed_components << '\n';
+    if (!topology.trace.empty()) {
+        std::cerr << prefix << "topology rewrite trace:\n";
+        for (std::size_t i = 0; i < topology.trace.size(); ++i) {
+            std::cerr << prefix << "  " << (i + 1) << ". " << topology.trace[i]
+                      << '\n';
+        }
+    }
 }
 
 std::string join(const std::vector<std::string>& values, std::size_t start) {
@@ -74,6 +85,33 @@ std::pair<analog::Expr, analog::Expr> parse_equation(const std::string& query) {
     }
 
     return {expr.args[0], expr.args[1]};
+}
+
+bool contains_atom(const analog::Expr& expr, const std::string& name) {
+    if (expr.is_atom()) {
+        return expr.op == name;
+    }
+    for (const auto& arg : expr.args) {
+        if (contains_atom(arg, name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+analog::Expr substitute_atom(const analog::Expr& expr,
+                             const std::string& name,
+                             const analog::Expr& replacement) {
+    if (expr.is_atom()) {
+        return expr.op == name ? replacement : expr;
+    }
+
+    std::vector<analog::Expr> args;
+    args.reserve(expr.args.size());
+    for (const auto& arg : expr.args) {
+        args.push_back(substitute_atom(arg, name, replacement));
+    }
+    return analog::call(expr.op, std::move(args));
 }
 
 analog::Expr optimize(const analog::Expr& expr,
@@ -484,16 +522,19 @@ int main(int argc, char** argv) {
             }
 
             const auto [query_lhs, query_rhs] = parse_equation(filtered[5]);
-            analog::Expr target;
-            if (analog::is_atom_value(query_lhs, "Rth")) {
-                target = query_rhs;
-            } else if (analog::is_atom_value(query_rhs, "Rth")) {
-                target = query_lhs;
-            } else {
+            if (!contains_atom(query_lhs, "Rth") && !contains_atom(query_rhs, "Rth")) {
                 throw std::runtime_error(
-                    "--solve-rth-for equation must compare Rth with a target");
+                    "--solve-rth-for equation must reference Rth");
             }
-            const auto solution = analog::solve_for(thevenin.rth, target, filtered[4]);
+            const auto lowered_lhs = substitute_atom(query_lhs, "Rth", thevenin.rth);
+            const auto lowered_rhs = substitute_atom(query_rhs, "Rth", thevenin.rth);
+            if (explain) {
+                std::cerr << "lowered equation: (eq "
+                          << analog::to_string(lowered_lhs) << ' '
+                          << analog::to_string(lowered_rhs) << ")\n";
+            }
+            const auto solution =
+                analog::solve_for(lowered_lhs, lowered_rhs, filtered[4]);
             if (!solution.has_value()) {
                 throw std::runtime_error("could not isolate variable: " + filtered[4]);
             }

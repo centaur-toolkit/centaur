@@ -1,0 +1,5 @@
+* Schaum Basic Circuit Analysis, Exercise 3.46.
+* A 90-A source feeds 12-ohm and 24-ohm resistors in parallel.
+I90 0 top 90
+R12 top 0 12
+R24 top 0 24

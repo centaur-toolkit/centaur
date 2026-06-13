@@ -1,0 +1,5 @@
+* Schaum Basic Circuit Analysis, Exercise 3.39.
+* Hot bulb resistance from rating: R = V^2 / P, with V = 120 V.
+R60 a 0 (div (mul 120 120) 60)
+R100 a 0 (div (mul 120 120) 100)
+R200 a 0 (div (mul 120 120) 200)
