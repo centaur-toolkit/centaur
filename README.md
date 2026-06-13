@@ -1,5 +1,7 @@
 # Centaur
 
+[![CI](https://github.com/centaur-toolkit/centaur/actions/workflows/ci.yml/badge.svg)](https://github.com/centaur-toolkit/centaur/actions/workflows/ci.yml)
+
 Centaur is a C++ prototype for symbolic analog-circuit analysis and topology
 rewriting. The goal is Herbie-like exploration for circuit structure: keep the
 input close to textbook circuits, infer useful equivalent forms, and produce
