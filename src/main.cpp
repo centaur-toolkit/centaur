@@ -3,6 +3,7 @@
 #include "centaur/netlist.h"
 #include "centaur/parser.h"
 #include "centaur/rewrite.h"
+#include "centaur/solve.h"
 #include "centaur/topology.h"
 
 #include <exception>
@@ -19,13 +20,18 @@ void usage(const char* program) {
     std::cerr
         << "Usage:\n"
         << "  " << program << " [--iters N] '<expr>'\n"
+        << "  " << program << " [--iters N] --solve-for <var> '(eq lhs-expr rhs-expr)'\n"
         << "  " << program << " [--iters N] --solve <netlist.cir> "
         << "[--current name] [--voltage node+ node-] [--power name] "
         << "[--seen-resistance Vname]\n"
         << "  " << program << " --rewrite-topology <netlist.cir> [protected-node ...]\n"
-        << "  " << program << " [--iters N] --thevenin <netlist.cir> <node+> <node->\n\n"
+        << "  " << program << " [--iters N] --thevenin <netlist.cir> <node+> <node->\n"
+        << "  " << program
+        << " [--iters N] --solve-rth-for <netlist.cir> <node+> <node-> <var> "
+        << "'(eq Rth target-rth)'\n\n"
         << "Examples:\n"
         << "  " << program << " '(mul Vin (div R2 (add R1 R2)))'\n"
+        << "  " << program << " --solve-for R '(eq (par 10000 20000 R) 12000)'\n"
         << "  " << program << " --thevenin examples/voltage_divider.cir out 0\n";
 }
 
@@ -38,6 +44,8 @@ void print_topology_summary(const analog::TopologyRewriteResult& topology,
               << topology.merged_series_resistor_groups << '\n';
     std::cerr << prefix << "topology shorted resistors removed: "
               << topology.removed_short_resistors << '\n';
+    std::cerr << prefix << "topology zero-voltage sources removed: "
+              << topology.removed_zero_voltage_sources << '\n';
     std::cerr << prefix << "topology dangling resistors removed: "
               << topology.removed_dangling_resistors << '\n';
     std::cerr << prefix << "topology current-source series resistors removed: "
@@ -57,6 +65,15 @@ std::string join(const std::vector<std::string>& values, std::size_t start) {
         out << values[i];
     }
     return out.str();
+}
+
+std::pair<analog::Expr, analog::Expr> parse_equation(const std::string& query) {
+    const auto expr = analog::parse_expr(query);
+    if (expr.is_atom() || expr.op != "eq" || expr.args.size() != 2) {
+        throw std::runtime_error("equation query must be (eq lhs rhs)");
+    }
+
+    return {expr.args[0], expr.args[1]};
 }
 
 analog::Expr optimize(const analog::Expr& expr,
@@ -384,6 +401,27 @@ int main(int argc, char** argv) {
 
         const auto rules = analog::analog_rules();
 
+        if (filtered[0] == "--solve-for") {
+            if (filtered.size() != 3) {
+                usage(argv[0]);
+                return 2;
+            }
+
+            const auto [lhs, rhs] = parse_equation(filtered[2]);
+            const auto solution = analog::solve_for(lhs, rhs, filtered[1]);
+            if (!solution.has_value()) {
+                throw std::runtime_error("could not isolate variable: " + filtered[1]);
+            }
+            if (explain) {
+                std::cerr << "raw " << filtered[1] << ": "
+                          << analog::to_string(*solution) << '\n';
+            }
+            const auto best = optimize(*solution, rules, iterations, explain,
+                                       "solve(" + filtered[1] + ")");
+            std::cout << filtered[1] << ": " << analog::to_string(best) << '\n';
+            return 0;
+        }
+
         if (filtered[0] == "--solve") {
             if (filtered.size() < 2) {
                 usage(argv[0]);
@@ -423,6 +461,49 @@ int main(int argc, char** argv) {
                 print_topology_summary(result);
             }
             std::cout << analog::circuit_to_netlist(result.circuit);
+            return 0;
+        }
+
+        if (filtered[0] == "--solve-rth-for") {
+            if (filtered.size() != 6) {
+                usage(argv[0]);
+                return 2;
+            }
+
+            const auto circuit = analog::parse_netlist_file(filtered[1]);
+            const auto topology =
+                analog::rewrite_topology(circuit, {filtered[2], filtered[3]});
+            if (explain) {
+                print_topology_summary(topology);
+            }
+
+            const auto thevenin =
+                analog::solve_thevenin(topology.circuit, filtered[2], filtered[3]);
+            if (explain) {
+                std::cerr << "raw Rth: " << analog::to_string(thevenin.rth) << '\n';
+            }
+
+            const auto [query_lhs, query_rhs] = parse_equation(filtered[5]);
+            analog::Expr target;
+            if (analog::is_atom_value(query_lhs, "Rth")) {
+                target = query_rhs;
+            } else if (analog::is_atom_value(query_rhs, "Rth")) {
+                target = query_lhs;
+            } else {
+                throw std::runtime_error(
+                    "--solve-rth-for equation must compare Rth with a target");
+            }
+            const auto solution = analog::solve_for(thevenin.rth, target, filtered[4]);
+            if (!solution.has_value()) {
+                throw std::runtime_error("could not isolate variable: " + filtered[4]);
+            }
+            if (explain) {
+                std::cerr << "raw " << filtered[4] << ": "
+                          << analog::to_string(*solution) << '\n';
+            }
+            const auto best = optimize(*solution, rules, iterations, explain,
+                                       "solve(" + filtered[4] + ")");
+            std::cout << filtered[4] << ": " << analog::to_string(best) << '\n';
             return 0;
         }
 

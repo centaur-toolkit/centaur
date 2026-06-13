@@ -1,0 +1,9 @@
+* Schaum Basic Circuit Analysis, Exercise 3.29 / Fig. 3-15.
+* Unknown current arrows are modeled as 0 V voltage sources, used as ideal
+* ammeters. Current through each ammeter is from node+ to node-.
+I10 left top 10
+I8 right top 8
+I9 0 right 9
+V_I1 0 left 0
+V_I2 top 0 0
+V_I3 right left 0

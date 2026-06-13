@@ -12,6 +12,7 @@ struct TopologyRewriteResult {
     int merged_parallel_resistor_groups = 0;
     int merged_series_resistor_groups = 0;
     int removed_short_resistors = 0;
+    int removed_zero_voltage_sources = 0;
     int removed_dangling_resistors = 0;
     int removed_current_source_series_resistors = 0;
     int removed_voltage_source_parallel_resistors = 0;

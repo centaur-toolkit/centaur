@@ -69,6 +69,16 @@ void collect_add_terms(Expr expr, std::vector<Expr>& terms) {
     terms.push_back(std::move(expr));
 }
 
+void collect_call_terms(const std::string& op, Expr expr, std::vector<Expr>& terms) {
+    if (!expr.is_atom() && expr.op == op) {
+        for (auto& arg : expr.args) {
+            collect_call_terms(op, std::move(arg), terms);
+        }
+        return;
+    }
+    terms.push_back(std::move(expr));
+}
+
 Expr apply_sign(bool negative, Expr value) {
     return negative ? make_neg(std::move(value)) : std::move(value);
 }
@@ -364,6 +374,49 @@ Expr make_inv(Expr value) {
     return call("inv", {std::move(value)});
 }
 
+Expr make_par(std::vector<Expr> values) {
+    std::vector<Expr> flattened;
+    for (auto& value : values) {
+        collect_call_terms("par", std::move(value), flattened);
+    }
+
+    std::vector<Expr> kept;
+    kept.reserve(flattened.size());
+    std::vector<Expr> numeric_terms;
+    numeric_terms.reserve(flattened.size());
+    double numeric_conductance = 0.0;
+    for (auto& value : flattened) {
+        if (is_zero(value)) {
+            return atom("0");
+        }
+        double numeric = 0.0;
+        if (numeric_value(value, numeric) && std::abs(numeric) >= 1e-12) {
+            numeric_terms.push_back(value);
+            numeric_conductance += 1.0 / numeric;
+            continue;
+        }
+        kept.push_back(std::move(value));
+    }
+
+    if (!numeric_terms.empty()) {
+        if (std::abs(numeric_conductance) >= 1e-12) {
+            kept.push_back(numeric_atom(1.0 / numeric_conductance));
+        } else {
+            for (auto& value : numeric_terms) {
+                kept.push_back(std::move(value));
+            }
+        }
+    }
+
+    if (kept.empty()) {
+        return call("par", {});
+    }
+    if (kept.size() == 1) {
+        return std::move(kept.front());
+    }
+    return call("par", std::move(kept));
+}
+
 Expr simplify_expr(const Expr& expr) {
     if (expr.is_atom()) {
         return expr;
@@ -375,11 +428,22 @@ Expr simplify_expr(const Expr& expr) {
         args.push_back(simplify_expr(arg));
     }
 
-    if (expr.op == "add" && args.size() == 2) {
-        return make_add(std::move(args[0]), std::move(args[1]));
+    if (expr.op == "add") {
+        Expr result = atom("0");
+        for (auto& arg : args) {
+            result = make_add(std::move(result), std::move(arg));
+        }
+        return result;
     }
-    if (expr.op == "mul" && args.size() == 2) {
-        return make_mul(std::move(args[0]), std::move(args[1]));
+    if (expr.op == "sub" && args.size() == 2) {
+        return make_sub(std::move(args[0]), std::move(args[1]));
+    }
+    if (expr.op == "mul") {
+        Expr result = atom("1");
+        for (auto& arg : args) {
+            result = make_mul(std::move(result), std::move(arg));
+        }
+        return result;
     }
     if (expr.op == "div" && args.size() == 2) {
         return make_div(std::move(args[0]), std::move(args[1]));
@@ -389,6 +453,9 @@ Expr simplify_expr(const Expr& expr) {
     }
     if (expr.op == "inv" && args.size() == 1) {
         return make_inv(std::move(args[0]));
+    }
+    if (expr.op == "par") {
+        return make_par(std::move(args));
     }
 
     return call(expr.op, std::move(args));

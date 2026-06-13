@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.33.
+* Four resistors connected in parallel between terminals a and b.
+R1 a b 1
+R2 a b 0.5
+R3 a b 0.25
+R4 a b 0.125

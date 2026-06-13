@@ -21,11 +21,12 @@ Implemented today:
 - Thevenin equivalent calculation
 - operating-point node voltages, branch currents, powers, and source seen
   resistance
+- one-variable symbolic equation isolation for backward design queries
 - topology rewrites for series/parallel resistors and ideal-source patterns
 - independent voltage/current sources
 - voltage-controlled voltage/current sources
 - current-controlled current sources using component current references
-- regression examples from Schaum Basic Circuit Analysis exercises 3.20-3.28
+- regression examples from Schaum Basic Circuit Analysis exercises 3.20-3.35
 
 This is still a prototype. The current solver is linear and DC-oriented; AC
 impedance forms are present in the expression rewrite layer, but not yet a full
@@ -95,6 +96,19 @@ Use `--explain` to see topology and expression rewrite activity:
 ./build/centaur --explain --solve examples/exercise_3_28.cir --voltage a 0
 ```
 
+Infer an unknown resistance from a target equivalent resistance:
+
+```sh
+./build/centaur --solve-rth-for examples/exercise_3_35.cir a 0 R \
+  '(eq Rth 12000)'
+```
+
+Output:
+
+```text
+R: -15000
+```
+
 ## Netlist Format
 
 The parser accepts a compact SPICE-like format:
@@ -159,6 +173,18 @@ Compute a Thevenin equivalent:
 ./build/centaur --thevenin file.cir node+ node-
 ```
 
+Solve a one-variable symbolic equation:
+
+```sh
+./build/centaur --solve-for R '(eq (par 10000 20000 R) 12000)'
+```
+
+Infer a value from a target Thevenin resistance:
+
+```sh
+./build/centaur --solve-rth-for file.cir node+ node- R '(eq Rth 12000)'
+```
+
 Run only the topology prepass:
 
 ```sh
@@ -181,6 +207,7 @@ Current rules:
 - series resistors through an unprotected degree-2 node become one resistor
   with `(add ...)`
 - shorted resistors are removed
+- unprotected independent `0 V` sources are removed by merging their two nodes
 - dangling resistor branches ending at unprotected nodes are removed
 - a resistor in series with an ideal current source is removed and the source is
   reconnected across the branch
@@ -211,7 +238,7 @@ Expressions use s-expressions:
 (div a b)
 (neg a)
 (inv a)
-(par R1 R2)
+(par R1 R2 ...)
 (vdiv Vin Rtop Rbot)
 (zc C1)
 (zl L1)
@@ -220,6 +247,13 @@ Expressions use s-expressions:
 The rewrite rules include algebraic identities, parallel impedance forms,
 voltage-divider recognition, capacitor/inductor impedance forms, RC low-pass
 forms, and a common-source gain idiom.
+
+Equation queries are ordinary expressions:
+
+```text
+(eq (par 10000 20000 R) 12000)
+(eq Rth 12000)
+```
 
 ## Textbook Examples
 
@@ -235,6 +269,9 @@ Analysis:
 
 ./build/centaur --solve examples/exercise_3_28.cir \
   --voltage a 0 --current R9 --current R13
+
+./build/centaur --solve-rth-for examples/exercise_3_35.cir \
+  a 0 R '(eq Rth 12000)'
 ```
 
 These are also covered by CTest.
@@ -244,6 +281,8 @@ These are also covered by CTest.
 Near-term work:
 
 - add more source-control forms, including current-controlled voltage sources
+- generalize `(eq ...)` constraints to multiple variables with a solver backend
+  and verified bindings
 - improve symbolic linear solving to avoid floating-point artifacts
 - add typed symbols and dimensions
 - extend the frontend toward impedance-domain `Z` circuits

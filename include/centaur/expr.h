@@ -35,6 +35,7 @@ Expr make_mul(Expr lhs, Expr rhs);
 Expr make_div(Expr lhs, Expr rhs);
 Expr make_neg(Expr value);
 Expr make_inv(Expr value);
+Expr make_par(std::vector<Expr> values);
 Expr simplify_expr(const Expr& expr);
 
 } // namespace analog

@@ -1,0 +1,5 @@
+* Schaum Basic Circuit Analysis, Exercise 3.35.
+* Find R such that 10 kOhm, 20 kOhm, and R in parallel give Rth = 12 kOhm.
+R10 a 0 10000
+R20 a 0 20000
+Rx a 0 R

@@ -1,0 +1,10 @@
+* Schaum Basic Circuit Analysis, Exercise 3.30 / Fig. 3-16.
+* The dashed closed surface is modeled as node "loop". The unknown current I
+* leaves the surface through a 0 V ammeter branch from loop to ground.
+V_I loop 0 0
+I16 0 loop 16
+I8 0 loop 8
+I9 0 loop 9
+I10 0 loop 10
+I3 loop 0 3
+I2 loop 0 2

@@ -1,0 +1,7 @@
+* Schaum Basic Circuit Analysis, Exercise 3.32 / Fig. 3-18.
+* V_I2 is a 0 V ammeter for the short-circuit current I2, referenced downward.
+V36 left 0 36
+R20 left top 20000
+V_I2 top 0 0
+Fdep right top V_I2 10
+R5 right 0 5000

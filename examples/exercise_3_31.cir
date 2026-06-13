@@ -1,0 +1,8 @@
+* Schaum Basic Circuit Analysis, Exercise 3.31 / Fig. 3-17.
+* The short circuit is modeled as a 0 V ammeter branch. I3 is the current
+* through V_I3 from mid to ground, matching the downward reference arrow.
+V100 left 0 100
+R20 left mid 20
+V200 0 right 200
+R25 right mid 25
+V_I3 mid 0 0

@@ -43,11 +43,12 @@ bool is_voltage_source(const Component& component) {
 }
 
 Expr parallel_value(const std::vector<const Component*>& resistors) {
-    Expr value = resistors.front()->value;
-    for (std::size_t i = 1; i < resistors.size(); ++i) {
-        value = call("par", {std::move(value), resistors[i]->value});
+    std::vector<Expr> values;
+    values.reserve(resistors.size());
+    for (const auto* resistor : resistors) {
+        values.push_back(resistor->value);
     }
-    return value;
+    return call("par", std::move(values));
 }
 
 Expr series_value(const Component& first, const Component& second) {
@@ -115,6 +116,7 @@ void add_counts(TopologyRewriteResult& total, const TopologyRewriteResult& delta
     total.merged_parallel_resistor_groups += delta.merged_parallel_resistor_groups;
     total.merged_series_resistor_groups += delta.merged_series_resistor_groups;
     total.removed_short_resistors += delta.removed_short_resistors;
+    total.removed_zero_voltage_sources += delta.removed_zero_voltage_sources;
     total.removed_dangling_resistors += delta.removed_dangling_resistors;
     total.removed_current_source_series_resistors +=
         delta.removed_current_source_series_resistors;
@@ -137,6 +139,79 @@ TopologyRewriteResult remove_shorted_resistors_once(
         }
         result.circuit.components.push_back(component);
     }
+    return result;
+}
+
+void replace_node(Component& component,
+                  const std::string& old_node,
+                  const std::string& new_node) {
+    if (component.positive == old_node) {
+        component.positive = new_node;
+    }
+    if (component.negative == old_node) {
+        component.negative = new_node;
+    }
+    if (component.control_positive == old_node) {
+        component.control_positive = new_node;
+    }
+    if (component.control_negative == old_node) {
+        component.control_negative = new_node;
+    }
+}
+
+std::pair<std::string, std::string> zero_source_merge_nodes(
+    const Component& source,
+    const std::set<std::string>& protected_nodes) {
+    const bool positive_protected = is_protected(protected_nodes, source.positive);
+    const bool negative_protected = is_protected(protected_nodes, source.negative);
+
+    if (positive_protected && !negative_protected) {
+        return {source.positive, source.negative};
+    }
+    if (negative_protected && !positive_protected) {
+        return {source.negative, source.positive};
+    }
+    if (source.positive <= source.negative) {
+        return {source.positive, source.negative};
+    }
+    return {source.negative, source.positive};
+}
+
+TopologyRewriteResult remove_one_zero_voltage_source_once(
+    const Circuit& circuit,
+    const std::set<std::string>& protected_nodes,
+    const std::set<std::string>& protected_components) {
+    TopologyRewriteResult result;
+
+    for (std::size_t i = 0; i < circuit.components.size(); ++i) {
+        const auto& component = circuit.components[i];
+        if (component.type != ComponentType::VoltageSource || !is_zero(component.value) ||
+            is_protected_component(protected_components, component)) {
+            continue;
+        }
+        if (is_protected(protected_nodes, component.positive) &&
+            is_protected(protected_nodes, component.negative) &&
+            component.positive != component.negative) {
+            continue;
+        }
+
+        const auto [keep_node, replace_node_name] =
+            zero_source_merge_nodes(component, protected_nodes);
+
+        for (std::size_t j = 0; j < circuit.components.size(); ++j) {
+            if (j == i) {
+                ++result.removed_zero_voltage_sources;
+                ++result.removed_components;
+                continue;
+            }
+            Component kept = circuit.components[j];
+            replace_node(kept, replace_node_name, keep_node);
+            result.circuit.components.push_back(std::move(kept));
+        }
+        return result;
+    }
+
+    result.circuit = circuit;
     return result;
 }
 
@@ -417,6 +492,16 @@ TopologyRewriteResult rewrite_topology(
             changed = true;
             total.circuit = std::move(shorted.circuit);
             add_counts(total, shorted);
+        }
+
+        auto zero_voltage = remove_one_zero_voltage_source_once(
+            total.circuit,
+            protected_node_names,
+            protected_component_names);
+        if (zero_voltage.removed_components > 0) {
+            changed = true;
+            total.circuit = std::move(zero_voltage.circuit);
+            add_counts(total, zero_voltage);
         }
 
         auto voltage_parallel = remove_resistors_parallel_with_voltage_sources_once(

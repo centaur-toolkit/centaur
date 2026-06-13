@@ -3,6 +3,7 @@
 #include "centaur/netlist.h"
 #include "centaur/parser.h"
 #include "centaur/rewrite.h"
+#include "centaur/solve.h"
 #include "centaur/topology.h"
 
 #include <cassert>
@@ -43,10 +44,38 @@ int main() {
            "(vdiv Vin R1 R2)");
     assert(optimize_to_string("(div 90 10)") == "9");
     assert(optimize_to_string("(add (mul 1.5 25) 30)") == "67.5");
+    assert(optimize_to_string("(add (inv 1) (inv 0.5) (inv 0.25) (inv 0.125))") ==
+           "15");
+    assert(optimize_to_string("(inv (add (inv 1) (inv 0.5) (inv 0.25) (inv 0.125)))") ==
+           "0.0666666666667");
 
     const std::string parallel =
         optimize_to_string("(div 1 (add (inv R1) (inv R2)))");
     assert(either(parallel, "(par R1 R2)", "(par R2 R1)"));
+    assert(analog::to_string(analog::simplify_expr(
+               analog::parse_expr("(par R1 (par R2 R3))"))) ==
+           "(par R1 R2 R3)");
+    assert(analog::to_string(analog::simplify_expr(
+               analog::parse_expr(
+                   "(par 200 200 200 200 200 200 200 200 200 200 "
+                   "200 200 200 200 200 200 200 200 200 200 "
+                   "200 200 200 200 200 200 200 200 200 200 "
+                   "200 200 200 200 200 200 200 200 200 200 "
+                   "200 200 200 200 200 200 200 200 200 200)"))) ==
+           "4");
+    assert(optimize_to_string(
+               "(inv (sub (inv 12000) (add (inv 10000) (inv 20000))))") ==
+           "-15000");
+
+    const auto exercise_3_35_solution = analog::solve_for(
+        analog::parse_expr("(par 10000 20000 R)"),
+        analog::parse_expr("12000"),
+        "R");
+    assert(exercise_3_35_solution.has_value());
+    assert(analog::to_string(analog::optimize_expr(
+               *exercise_3_35_solution, analog::analog_rules(), 12)) ==
+           "-15000");
+    assert(optimize_to_string("(par 10000 20000 -15000)") == "12000");
 
     const auto parallel_topology = analog::rewrite_parallel_resistors(
         analog::parse_netlist(
@@ -86,6 +115,25 @@ int main() {
     assert(shorted_topology.removed_components == 1);
     assert(shorted_topology.circuit.components.size() == 1);
     assert(shorted_topology.circuit.components[0].name == "Rkeep");
+
+    const auto zero_voltage_topology = analog::rewrite_topology(
+        analog::parse_netlist(
+            "Vshort a mid 0\n"
+            "Rload mid 0 Rload\n"),
+        {"a"});
+    assert(zero_voltage_topology.removed_zero_voltage_sources == 1);
+    assert(zero_voltage_topology.removed_components == 1);
+    assert(zero_voltage_topology.circuit.components.size() == 1);
+    assert(zero_voltage_topology.circuit.components[0].positive == "a");
+
+    const auto protected_zero_voltage_topology = analog::rewrite_topology(
+        analog::parse_netlist(
+            "Vshort a mid 0\n"
+            "Rload mid 0 Rload\n"),
+        {"a"},
+        {"Vshort"});
+    assert(protected_zero_voltage_topology.removed_zero_voltage_sources == 0);
+    assert(protected_zero_voltage_topology.circuit.components.size() == 2);
 
     const auto dangling_topology = analog::rewrite_topology(
         analog::parse_netlist(
@@ -157,7 +205,7 @@ int main() {
     const auto parallel_divider =
         thevenin_to_strings(rewritten_parallel_divider.circuit, "out", "0");
     assert(parallel_divider.first == "(vdiv Vin Rtop (par Rb1 Rb2))");
-    assert(parallel_divider.second == "(par Rtop (par Rb1 Rb2))");
+    assert(parallel_divider.second == "(par Rb1 Rb2 Rtop)");
 
     const auto divider = thevenin_to_strings(
         "V1 in 0 Vin\n"
