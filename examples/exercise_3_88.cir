@@ -1,0 +1,7 @@
+* Schaum Basic Circuit Analysis, Exercise 3.88 / Fig. 3-40.
+* Use voltage division twice to find V across the 45-ohm resistor.
+V80 src 0 80
+R16 src mid 16
+R40 mid 0 40
+R15 mid out 15
+R45 out 0 45

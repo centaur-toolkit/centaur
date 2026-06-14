@@ -1934,3 +1934,426 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION
         "V top 0: -240[\r\n]+V mid 0: -48[\r\n]+I R24_i1: -10[\r\n]+I R24_i2: -8[\r\n]+I R8_i3: 6[\r\n]+I R24_i4: -2[\r\n]+I R20_i5: 12"
 )
+
+add_test(
+    NAME exercise_3_81_load_voltage_constraint
+    COMMAND centaur --solve-constraint
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_81.cir
+            Vload
+)
+set_tests_properties(
+    exercise_3_81_load_voltage_constraint
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "Vload: 8"
+)
+
+add_test(
+    NAME exercise_3_81_unknown_r1
+    COMMAND centaur --solve-constraint
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_81.cir
+            R1
+)
+set_tests_properties(
+    exercise_3_81_unknown_r1
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "R1: 20"
+)
+
+add_test(
+    NAME exercise_3_81_unknown_r2
+    COMMAND centaur --solve-constraint
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_81.cir
+            R2
+)
+set_tests_properties(
+    exercise_3_81_unknown_r2
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "R2: 5"
+)
+
+add_test(
+    NAME exercise_3_82_current_division_r1
+    COMMAND centaur
+            "(mul (div 12 (add 6 12)) (div 12 (add 2 (par 6 12))))"
+)
+set_tests_properties(
+    exercise_3_82_current_division_r1
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "4/3"
+)
+
+add_test(
+    NAME exercise_3_82_netlist_current
+    COMMAND centaur --solve
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_82.cir
+            --voltage top 0
+            --current Rseries
+            --current R1
+            --current R2
+)
+set_tests_properties(
+    exercise_3_82_netlist_current
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "V top 0: 8[\r\n]+I Rseries: 2[\r\n]+I R1: 4/3[\r\n]+I R2: 2/3"
+)
+
+add_test(
+    NAME exercise_3_83_current_division_r10
+    COMMAND centaur
+            "(mul 60 (div 40 (add 40 (add 12 (par 40 10)))) (div 40 (add 40 10)))"
+)
+set_tests_properties(
+    exercise_3_83_current_division_r10
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "32"
+)
+
+add_test(
+    NAME exercise_3_83_topology
+    COMMAND centaur --rewrite-topology
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_83.cir
+            top 0
+)
+set_tests_properties(
+    exercise_3_83_topology
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "Rpar2 top 0 \\(par 40 \\(add 12 \\(par 10 40\\)\\)\\)"
+)
+
+add_test(
+    NAME exercise_3_83_netlist_current
+    COMMAND centaur --solve
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_83.cir
+            --voltage top 0
+            --voltage inner 0
+            --current R10
+)
+set_tests_properties(
+    exercise_3_83_netlist_current
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "V top 0: 800[\r\n]+V inner 0: 320[\r\n]+I R10: 32"
+)
+
+add_test(
+    NAME exercise_3_84_load_equivalent
+    COMMAND centaur "(par 30 20)"
+)
+set_tests_properties(
+    exercise_3_84_load_equivalent
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "12"
+)
+
+add_test(
+    NAME exercise_3_84_unknown_resistor
+    COMMAND centaur --solve-constraint
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_84.cir
+            R
+)
+set_tests_properties(
+    exercise_3_84_unknown_resistor
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "R: 30"
+)
+
+add_test(
+    NAME exercise_3_84_topology
+    COMMAND centaur --rewrite-topology
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_84.cir
+            out 0
+)
+set_tests_properties(
+    exercise_3_84_topology
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "Rpar1 out 0 \\(par 20 R\\)"
+)
+
+add_test(
+    NAME exercise_3_85_current_division
+    COMMAND centaur
+            "(div (mul 240 (div (par 48 60 40) (add 8 (par 48 60 40)))) 40)"
+)
+set_tests_properties(
+    exercise_3_85_current_division
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "4"
+)
+
+add_test(
+    NAME exercise_3_85_netlist_current
+    COMMAND centaur --solve
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_85.cir
+            --voltage mid 0
+            --current R40
+)
+set_tests_properties(
+    exercise_3_85_netlist_current
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "V mid 0: 160[\r\n]+I R40: 4"
+)
+
+add_test(
+    NAME exercise_3_86_supply_voltage_expression
+    COMMAND centaur
+            "(add (add 120 (mul 40 (add (div 120 240) (div 120 60)))) (mul 10 (add (div (add 120 (mul 40 (add (div 120 240) (div 120 60)))) 55) (add (div 120 240) (div 120 60)))))"
+)
+set_tests_properties(
+    exercise_3_86_supply_voltage_expression
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "285"
+)
+
+add_test(
+    NAME exercise_3_86_supply_voltage_constraint
+    COMMAND centaur --solve-constraint
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_86.cir
+            Vs
+)
+set_tests_properties(
+    exercise_3_86_supply_voltage_constraint
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "Vs: 285"
+)
+
+add_test(
+    NAME exercise_3_86_topology
+    COMMAND centaur --rewrite-topology
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_86.cir
+            bulb 0
+)
+set_tests_properties(
+    exercise_3_86_topology
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "Rpar1 bulb 0 \\(par 240 60\\)"
+)
+
+add_test(
+    NAME exercise_3_87_current_expression
+    COMMAND centaur
+            "(div (div 16 (add (inv 14) (mul 2 (inv 70)) (inv 70))) 70)"
+)
+set_tests_properties(
+    exercise_3_87_current_expression
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "2"
+)
+
+add_test(
+    NAME exercise_3_87_dependent_power_expression
+    COMMAND centaur
+            "(mul (div 16 (add (inv 14) (mul 2 (inv 70)) (inv 70))) (mul 2 (div (div 16 (add (inv 14) (mul 2 (inv 70)) (inv 70))) 70)))"
+)
+set_tests_properties(
+    exercise_3_87_dependent_power_expression
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "560"
+)
+
+add_test(
+    NAME exercise_3_87_netlist_current_power
+    COMMAND centaur --solve
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_87.cir
+            --voltage top 0
+            --current R70
+            --current Fdep
+            --power Fdep
+)
+set_tests_properties(
+    exercise_3_87_netlist_current_power
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "V top 0: 140[\r\n]+I R70: 2[\r\n]+I Fdep: 4[\r\n]+P Fdep: 560"
+)
+
+add_test(
+    NAME exercise_3_88_voltage_division
+    COMMAND centaur
+            "(mul 80 (div (par 40 (add 15 45)) (add 16 (par 40 (add 15 45)))) (div 45 (add 15 45)))"
+)
+set_tests_properties(
+    exercise_3_88_voltage_division
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "36"
+)
+
+add_test(
+    NAME exercise_3_88_topology
+    COMMAND centaur --rewrite-topology
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_88.cir
+            mid 0
+)
+set_tests_properties(
+    exercise_3_88_topology
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "Rpar1 mid 0 \\(par 40 \\(add 15 45\\)\\)"
+)
+
+add_test(
+    NAME exercise_3_88_netlist_voltage
+    COMMAND centaur --solve
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_88.cir
+            --voltage mid 0
+            --voltage out 0
+            --current R45
+)
+set_tests_properties(
+    exercise_3_88_netlist_voltage
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "V mid 0: 48[\r\n]+V out 0: 36[\r\n]+I R45: 0.8"
+)
+
+add_test(
+    NAME exercise_3_89a_current_division
+    COMMAND centaur
+            "(mul 28 (div 8 (add 8 6 (par 20 0))) (div 20 (add 20 0)))"
+)
+set_tests_properties(
+    exercise_3_89a_current_division
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "16"
+)
+
+add_test(
+    NAME exercise_3_89b_current_division
+    COMMAND centaur
+            "(mul 28 (div 8 (add 8 6 (par 20 5))) (div 20 (add 20 5)))"
+)
+set_tests_properties(
+    exercise_3_89b_current_division
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "448/45"
+)
+
+add_test(
+    NAME exercise_3_89c_current_division
+    COMMAND centaur
+            "(mul 28 (div 8 (add 8 6 (par 20 20))) (div 20 (add 20 20)))"
+)
+set_tests_properties(
+    exercise_3_89c_current_division
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "14/3"
+)
+
+add_test(
+    NAME exercise_3_89b_topology
+    COMMAND centaur --rewrite-topology
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_89b.cir
+            left 0
+)
+set_tests_properties(
+    exercise_3_89b_topology
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "Rpar2 left 0 \\(par 8 \\(add 6 \\(par 20 5\\)\\)\\)"
+)
+
+add_test(
+    NAME exercise_3_89a_netlist_current
+    COMMAND centaur --solve
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_89a.cir
+            --voltage left 0
+            --voltage load 0
+            --current Vload
+)
+set_tests_properties(
+    exercise_3_89a_netlist_current
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "V left 0: 96[\r\n]+V load 0: 0[\r\n]+I Vload: 16"
+)
+
+add_test(
+    NAME exercise_3_89b_netlist_current
+    COMMAND centaur --solve
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_89b.cir
+            --voltage left 0
+            --voltage load 0
+            --current Rload
+)
+set_tests_properties(
+    exercise_3_89b_netlist_current
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "V left 0: 1120/9[\r\n]+V load 0: 448/9[\r\n]+I Rload: 448/45"
+)
+
+add_test(
+    NAME exercise_3_89c_netlist_current
+    COMMAND centaur --solve
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_89c.cir
+            --voltage left 0
+            --voltage load 0
+            --current Rload
+)
+set_tests_properties(
+    exercise_3_89c_netlist_current
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "V left 0: 448/3[\r\n]+V load 0: 280/3[\r\n]+I Rload: 14/3"
+)
+
+add_test(
+    NAME exercise_3_90_repeated_current_division
+    COMMAND centaur
+            "(mul (div 225 (add 3 (par (par 100 25) (add 10 (par 60 30))))) (div (par 100 25) (add (par 100 25) (add 10 (par 60 30)))) (div 60 (add 60 30)))"
+)
+set_tests_properties(
+    exercise_3_90_repeated_current_division
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "4"
+)
+
+add_test(
+    NAME exercise_3_90_topology
+    COMMAND centaur --rewrite-topology
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_90.cir
+            left 0
+)
+set_tests_properties(
+    exercise_3_90_topology
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "Rpar3 left 0 \\(par \\(add 10 \\(par 30 60\\)\\) \\(par 100 25\\)\\)"
+)
+
+add_test(
+    NAME exercise_3_90_netlist_current
+    COMMAND centaur --solve
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/exercise_3_90.cir
+            --voltage left 0
+            --voltage mid 0
+            --current R30
+            --current R60
+)
+set_tests_properties(
+    exercise_3_90_netlist_current
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "V left 0: 180[\r\n]+V mid 0: 120[\r\n]+I R30: 4[\r\n]+I R60: 2"
+)

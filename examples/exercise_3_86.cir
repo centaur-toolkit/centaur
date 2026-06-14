@@ -1,0 +1,9 @@
+* Schaum Basic Circuit Analysis, Exercise 3.86 / Fig. 3-38.
+* The 120-V, 60-W bulb is modeled as 240 ohm.
+Vsup src 0 Vs
+R10 src left 10
+R55 left 0 55
+R40 left bulb 40
+R60 bulb 0 60
+Rbulb bulb 0 240
+.constraint (eq (voltage bulb 0) 120)

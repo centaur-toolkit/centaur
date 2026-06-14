@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.87 / Fig. 3-39.
+* Find I through the 70-ohm resistor and the power absorbed by Fdep.
+I16 0 top 16
+R14 top 0 14
+R70 top 0 70
+Fdep top 0 R70 2

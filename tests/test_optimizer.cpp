@@ -334,6 +334,69 @@ int main() {
                "(div (sub (add 5 8) 43) "
                "(add (inv 24) (inv 20) (inv (add 24 (par 8 24)))))") ==
            "-240");
+    const std::vector<analog::Constraint> exercise_3_81_constraints{
+        analog::parse_constraint(analog::parse_expr("(eq Vload (sub 12 (mul 2 2)))")),
+        analog::parse_constraint(analog::parse_expr("(eq (mul 0.4 R1) Vload)")),
+        analog::parse_constraint(
+            analog::parse_expr("(eq (mul (sub 2 0.4) R2) Vload)")),
+    };
+    const auto exercise_3_81_r1 =
+        analog::solve_constraints_for(exercise_3_81_constraints, "R1");
+    const auto exercise_3_81_r2 =
+        analog::solve_constraints_for(exercise_3_81_constraints, "R2");
+    assert(exercise_3_81_r1.size() == 1);
+    assert(exercise_3_81_r2.size() == 1);
+    assert(analog::to_result_string(analog::optimize_expr(
+               exercise_3_81_r1[0].value, analog::analog_rules(), 12)) == "20");
+    assert(analog::to_result_string(analog::optimize_expr(
+               exercise_3_81_r2[0].value, analog::analog_rules(), 12)) == "5");
+    assert(optimize_to_result_string(
+               "(mul (div 12 (add 6 12)) (div 12 (add 2 (par 6 12))))") ==
+           "4/3");
+    assert(optimize_to_result_string(
+               "(mul 60 (div 40 (add 40 (add 12 (par 40 10)))) "
+               "(div 40 (add 40 10)))") == "32");
+    const auto exercise_3_84_solution = analog::solve_constraint_for(
+        analog::parse_constraint(analog::parse_expr("(eq (par R 20) 12)")),
+        "R");
+    assert(exercise_3_84_solution.size() == 1);
+    assert(analog::to_result_string(analog::optimize_expr(
+               exercise_3_84_solution[0].value, analog::analog_rules(), 12)) ==
+           "30");
+    assert(optimize_to_result_string(
+               "(div (mul 240 (div (par 48 60 40) "
+               "(add 8 (par 48 60 40)))) 40)") == "4");
+    assert(optimize_to_result_string(
+               "(add (add 120 (mul 40 (add (div 120 240) (div 120 60)))) "
+               "(mul 10 (add (div (add 120 (mul 40 (add (div 120 240) "
+               "(div 120 60)))) 55) (add (div 120 240) (div 120 60)))))") ==
+           "285");
+    assert(optimize_to_result_string(
+               "(div (div 16 (add (inv 14) (mul 2 (inv 70)) "
+               "(inv 70))) 70)") == "2");
+    assert(optimize_to_result_string(
+               "(mul (div 16 (add (inv 14) (mul 2 (inv 70)) (inv 70))) "
+               "(mul 2 (div (div 16 (add (inv 14) (mul 2 (inv 70)) "
+               "(inv 70))) 70)))") == "560");
+    assert(optimize_to_result_string(
+               "(mul 80 (div (par 40 (add 15 45)) "
+               "(add 16 (par 40 (add 15 45)))) "
+               "(div 45 (add 15 45)))") == "36");
+    assert(optimize_to_result_string(
+               "(mul 28 (div 8 (add 8 6 (par 20 0))) "
+               "(div 20 (add 20 0)))") == "16");
+    assert(optimize_to_result_string(
+               "(mul 28 (div 8 (add 8 6 (par 20 5))) "
+               "(div 20 (add 20 5)))") == "448/45");
+    assert(optimize_to_result_string(
+               "(mul 28 (div 8 (add 8 6 (par 20 20))) "
+               "(div 20 (add 20 20)))") == "14/3");
+    assert(optimize_to_result_string(
+               "(mul (div 225 (add 3 (par (par 100 25) "
+               "(add 10 (par 60 30))))) "
+               "(div (par 100 25) "
+               "(add (par 100 25) (add 10 (par 60 30)))) "
+               "(div 60 (add 60 30)))") == "4");
     assert(optimize_to_string("(add (inv 1) (inv 0.5) (inv 0.25) (inv 0.125))") ==
            "15");
     assert(optimize_to_string("(inv (add (inv 1) (inv 0.5) (inv 0.25) (inv 0.125)))") ==

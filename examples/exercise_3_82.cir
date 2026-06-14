@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.82 / Fig. 3-36.
+* Same circuit as Exercise 3.81, with R1 = 6 ohm and R2 = 12 ohm.
+V12 src 0 12
+Rseries src top 2
+R1 top 0 6
+R2 top 0 12

@@ -1,0 +1,8 @@
+* Schaum Basic Circuit Analysis, Exercise 3.85 / Fig. 3-37.
+* Find the current through the 40-ohm resistor.
+V240 left 0 240
+R12 left 0 12
+R8 left mid 8
+R48 mid 0 48
+R60 mid 0 60
+R40 mid 0 40

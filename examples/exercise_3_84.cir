@@ -1,0 +1,8 @@
+* Schaum Basic Circuit Analysis, Exercise 3.84.
+* A 620-V source feeds 50 ohm in series with R || 20.
+* The 20-ohm resistor has 120 V across it.
+V620 src 0 620
+R50 src out 50
+Rx out 0 R
+R20 out 0 20
+.constraint (eq (voltage out 0) 120)

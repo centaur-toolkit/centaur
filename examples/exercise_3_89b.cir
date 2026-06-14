@@ -1,0 +1,7 @@
+* Schaum Basic Circuit Analysis, Exercise 3.89(b) / Fig. 3-41.
+* Find I through the load resistor for RL = 5 ohm.
+I28 0 left 28
+R8 left 0 8
+R6 left load 6
+R20 load 0 20
+Rload load 0 5

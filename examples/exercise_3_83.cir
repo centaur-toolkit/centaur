@@ -1,0 +1,7 @@
+* Schaum Basic Circuit Analysis, Exercise 3.83.
+* A 60-A source feeds RT = 40 || (12 + (40 || 10)).
+I60 0 top 60
+R40_left top 0 40
+R12 top inner 12
+R40_inner inner 0 40
+R10 inner 0 10

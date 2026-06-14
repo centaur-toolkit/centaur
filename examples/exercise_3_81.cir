@@ -1,0 +1,12 @@
+* Schaum Basic Circuit Analysis, Exercise 3.81 / Fig. 3-36.
+* Find R1 and R2. The total source current is 2 A, and the R1 current is 0.4 A.
+V12 src 0 12
+Rseries src top 2
+R1 top 0 R1
+R2 top 0 R2
+*
+* Vload = 12 V - (2 A)(2 ohm) = 8 V.
+* The remaining branch current is 2 A - 0.4 A = 1.6 A.
+.constraint (eq Vload (sub 12 (mul 2 2)))
+.constraint (eq (mul 0.4 R1) Vload)
+.constraint (eq (mul (sub 2 0.4) R2) Vload)

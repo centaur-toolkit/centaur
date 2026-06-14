@@ -1,0 +1,9 @@
+* Schaum Basic Circuit Analysis, Exercise 3.90 / Fig. 3-42.
+* Values use V and kOhm, so branch currents are in mA.
+V225 src 0 225
+R3 src left 3
+R100 left 0 100
+R25 left 0 25
+R10 left mid 10
+R60 mid 0 60
+R30 mid 0 30

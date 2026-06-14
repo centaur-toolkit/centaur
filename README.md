@@ -29,7 +29,7 @@ Implemented today:
 - independent voltage/current sources
 - voltage-controlled voltage/current sources
 - current-controlled current sources using component current references
-- regression examples from Schaum Basic Circuit Analysis exercises 3.20-3.50 and 3.52-3.80
+- regression examples from Schaum Basic Circuit Analysis exercises 3.20-3.50 and 3.52-3.90
 
 This is still a prototype. The current solver is linear and DC-oriented; AC
 impedance forms are present in the expression rewrite layer, but not yet a full
@@ -406,6 +406,32 @@ Analysis:
 ./build/centaur --solve examples/exercise_3_79.cir --current R8 --current R12 --current R16 --current R24
 
 ./build/centaur --solve examples/exercise_3_80.cir --current R24_i1 --current R24_i2 --current R8_i3 --current R24_i4 --current R20_i5
+
+./build/centaur --solve-constraint examples/exercise_3_81.cir R1
+
+./build/centaur --solve-constraint examples/exercise_3_81.cir R2
+
+./build/centaur --solve examples/exercise_3_82.cir --current R1
+
+./build/centaur --solve examples/exercise_3_83.cir --current R10
+
+./build/centaur --solve-constraint examples/exercise_3_84.cir R
+
+./build/centaur --solve examples/exercise_3_85.cir --current R40
+
+./build/centaur --solve-constraint examples/exercise_3_86.cir Vs
+
+./build/centaur --solve examples/exercise_3_87.cir --current R70 --power Fdep
+
+./build/centaur --solve examples/exercise_3_88.cir --voltage out 0
+
+./build/centaur --solve examples/exercise_3_89a.cir --current Vload
+
+./build/centaur --solve examples/exercise_3_89b.cir --current Rload
+
+./build/centaur --solve examples/exercise_3_89c.cir --current Rload
+
+./build/centaur --solve examples/exercise_3_90.cir --current R30
 ```
 
 These are also covered by CTest.
