@@ -1,0 +1,8 @@
+* Schaum Basic Circuit Analysis, Exercise 3.79.
+* Exercise 3.78 repeated with all resistances doubled.
+* Currents are in mA when resistance values are interpreted as kOhm.
+I15 0 top 15
+R8 top 0 8
+R12 top 0 12
+R16 top 0 16
+R24 top 0 24

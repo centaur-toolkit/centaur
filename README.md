@@ -23,13 +23,13 @@ Implemented today:
 - Thevenin equivalent calculation
 - operating-point node voltages, branch currents, powers, and source seen
   resistance
-- one-variable constraint solving for backward design queries, including
-  inequality bounds and multiple equality roots
+- constraint solving for backward design queries, including inequality bounds,
+  multiple equality roots, and coupled linear equality systems
 - topology rewrites for series/parallel resistors and ideal-source patterns
 - independent voltage/current sources
 - voltage-controlled voltage/current sources
 - current-controlled current sources using component current references
-- regression examples from Schaum Basic Circuit Analysis exercises 3.20-3.50 and 3.52-3.58
+- regression examples from Schaum Basic Circuit Analysis exercises 3.20-3.50 and 3.52-3.80
 
 This is still a prototype. The current solver is linear and DC-oriented; AC
 impedance forms are present in the expression rewrite layer, but not yet a full
@@ -229,7 +229,8 @@ The netlist carries the observable inside the constraint:
 The observable forms are `(current component)`, `(voltage node+ node-)`,
 `(power component)`, and `(rth node+ node-)`.
 Multiple `.constraint` lines are treated as a conjunction when a solve command
-asks for a variable.
+asks for a variable; equality-only linear systems may contain additional
+intermediate variables.
 
 Infer a value from a target Thevenin resistance:
 
@@ -351,6 +352,60 @@ Analysis:
 ./build/centaur --solve-constraint examples/exercise_3_57.cir R
 
 ./build/centaur --solve-constraint examples/exercise_3_58.cir R
+
+./build/centaur --solve examples/exercise_3_59.cir \
+  --power R2 --power R4 --power R6
+
+./build/centaur --solve examples/exercise_3_60.cir --voltage a 0
+
+./build/centaur --solve examples/exercise_3_60.cir \
+  --voltage bottom_left bottom_mid
+
+./build/centaur --solve examples/exercise_3_62.cir --voltage n5 n6
+
+./build/centaur --solve examples/exercise_3_63.cir --current R2
+
+./build/centaur --solve examples/exercise_3_64.cir \
+  --voltage out_plus out_minus
+
+./build/centaur --solve-constraint examples/exercise_3_65.cir I1
+./build/centaur --solve-constraint examples/exercise_3_65.cir I2
+./build/centaur --solve-constraint examples/exercise_3_65.cir I3
+./build/centaur --solve-constraint examples/exercise_3_65.cir I4
+
+./build/centaur --solve examples/exercise_3_66.cir --current V_I
+
+./build/centaur --solve examples/exercise_3_67.cir --voltage out_top 0
+
+./build/centaur '(par (add 4 4) 4)'
+
+./build/centaur --solve-constraint examples/exercise_3_69.cir R
+
+./build/centaur --thevenin examples/exercise_3_70.cir a 0
+
+./build/centaur --solve-constraint examples/exercise_3_71.cir R
+
+./build/centaur --solve-constraint examples/exercise_3_72.cir R
+
+./build/centaur '(par (add (par 24 48) 24) 10)'
+
+./build/centaur '(par (add (par 6 12) (par 10 40)) (add 6 2))'
+
+./build/centaur --explain --rewrite-topology examples/exercise_3_75.cir a 0
+
+./build/centaur --thevenin examples/exercise_3_75.cir a 0
+
+./build/centaur --thevenin examples/exercise_3_76.cir a 0
+
+./build/centaur --thevenin examples/exercise_3_77a.cir in 0
+
+./build/centaur --thevenin examples/exercise_3_77b.cir in 0
+
+./build/centaur --solve examples/exercise_3_78.cir --current R4 --current R6 --current R8 --current R12
+
+./build/centaur --solve examples/exercise_3_79.cir --current R8 --current R12 --current R16 --current R24
+
+./build/centaur --solve examples/exercise_3_80.cir --current R24_i1 --current R24_i2 --current R8_i3 --current R24_i4 --current R20_i5
 ```
 
 These are also covered by CTest.

@@ -8,9 +8,10 @@
 #include "centaur/topology.h"
 
 #include <cassert>
-#include <utility>
 #include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -21,6 +22,12 @@ std::string optimize_to_string(const std::string& input) {
 
 std::string optimize_to_string(const analog::Expr& expr) {
     return analog::to_string(analog::optimize_expr(expr, analog::analog_rules(), 12));
+}
+
+std::string optimize_to_result_string(const std::string& input) {
+    const auto expr = analog::parse_expr(input);
+    return analog::to_result_string(
+        analog::optimize_expr(expr, analog::analog_rules(), 12));
 }
 
 analog::Expr substitute_atoms(
@@ -205,6 +212,128 @@ int main() {
     assert(exercise_3_58_solutions.size() == 2);
     assert(analog::to_string(exercise_3_58_solutions[0].value) == "20");
     assert(analog::to_string(exercise_3_58_solutions[1].value) == "500");
+    const auto exercise_3_59_current = analog::optimize_expr(
+        analog::parse_expr("(div 4 (add 2 4 6))"),
+        analog::analog_rules(),
+        12);
+    assert(analog::to_result_string(exercise_3_59_current) == "1/3");
+    assert(optimize_to_string("(mul 2 (div 4 (add 2 4 6)) (div 4 (add 2 4 6)))") ==
+           "0.222222222222");
+    assert(analog::to_result_string(analog::optimize_expr(
+               analog::parse_expr(
+                   "(mul 4 (div 4 (add 2 4 6)) (div 4 (add 2 4 6)))"),
+               analog::analog_rules(),
+               12)) == "4/9");
+    assert(analog::to_result_string(analog::optimize_expr(
+               analog::parse_expr(
+                   "(mul 6 (div 4 (add 2 4 6)) (div 4 (add 2 4 6)))"),
+               analog::analog_rules(),
+               12)) == "2/3");
+    assert(optimize_to_string("(mul 100 (div 6 (add 4 5 6 7 8)))") == "20");
+    assert(optimize_to_string("(div (sub 12 6) 2)") == "3");
+    assert(optimize_to_string(
+               "(sub (add (mul -80 (div 5 (add 3 5))) (mul 4 5)) 15)") ==
+           "-45");
+    const std::vector<analog::Constraint> exercise_3_65_constraints{
+        analog::parse_constraint(analog::parse_expr("(eq (add I1 5) (add 4 3))")),
+        analog::parse_constraint(analog::parse_expr("(eq (add I1 I2 7) 3)")),
+        analog::parse_constraint(analog::parse_expr("(eq (add 2 Itop) 4)")),
+        analog::parse_constraint(analog::parse_expr("(eq (add Itop I4) 5)")),
+        analog::parse_constraint(analog::parse_expr("(eq (add Ibottom 6) I4)")),
+        analog::parse_constraint(analog::parse_expr("(eq (add I3 2) Ibottom)")),
+    };
+    const auto exercise_3_65_i1 =
+        analog::solve_constraints_for(exercise_3_65_constraints, "I1");
+    assert(exercise_3_65_i1.size() == 1);
+    assert(analog::to_string(exercise_3_65_i1[0].value) == "2");
+    const auto exercise_3_65_i2 =
+        analog::solve_constraints_for(exercise_3_65_constraints, "I2");
+    assert(exercise_3_65_i2.size() == 1);
+    assert(analog::to_string(exercise_3_65_i2[0].value) == "-6");
+    const auto exercise_3_65_i3 =
+        analog::solve_constraints_for(exercise_3_65_constraints, "I3");
+    assert(exercise_3_65_i3.size() == 1);
+    assert(analog::to_string(exercise_3_65_i3[0].value) == "-5");
+    const auto exercise_3_65_i4 =
+        analog::solve_constraints_for(exercise_3_65_constraints, "I4");
+    assert(exercise_3_65_i4.size() == 1);
+    assert(analog::to_string(exercise_3_65_i4[0].value) == "3");
+    assert(optimize_to_string("(sub 8 (div 10 2))") == "3");
+    assert(optimize_to_string("(mul 8 (div 72 (add 2 4)))") == "96");
+    assert(optimize_to_result_string("4") == "4");
+    assert(optimize_to_result_string("(par 4 4)") == "2");
+    assert(optimize_to_result_string("(par 4 4 4)") == "4/3");
+    assert(optimize_to_result_string("(par (add 4 4) 4)") == "8/3");
+    assert(optimize_to_result_string("(add (par 4 4) 4)") == "6");
+    assert(optimize_to_result_string("(add 4 4)") == "8");
+    assert(optimize_to_result_string("(add 4 4 4)") == "12");
+    const auto exercise_3_69_solution = analog::solve_constraint_for(
+        analog::parse_constraint(
+            analog::parse_expr("(eq (par 100 R) 75)")),
+        "R");
+    assert(exercise_3_69_solution.size() == 1);
+    assert(analog::to_string(analog::optimize_expr(
+               exercise_3_69_solution[0].value, analog::analog_rules(), 12)) ==
+           "300");
+    assert(optimize_to_result_string("(par 2 4 6 8)") == "0.96");
+    const auto exercise_3_71_solution = analog::solve_constraint_for(
+        analog::parse_constraint(
+            analog::parse_expr("(eq (add (inv 1) (inv 5) (inv R)) 2)")),
+        "R");
+    assert(exercise_3_71_solution.size() == 1);
+    assert(analog::to_string(analog::optimize_expr(
+               exercise_3_71_solution[0].value, analog::analog_rules(), 12)) ==
+           "1.25");
+    const auto exercise_3_72_solution = analog::solve_constraint_for(
+        analog::parse_constraint(
+            analog::parse_expr("(eq (par 40 60 R) 10)")),
+        "R");
+    assert(exercise_3_72_solution.size() == 1);
+    assert(analog::to_result_string(analog::optimize_expr(
+               exercise_3_72_solution[0].value, analog::analog_rules(), 12)) ==
+           "120/7");
+    assert(optimize_to_result_string("(par (add (par 24 48) 24) 10)") == "8");
+    assert(optimize_to_result_string(
+               "(par (add (par 6 12) (par 10 40)) (add 6 2))") == "4.8");
+    assert(optimize_to_result_string(
+               "(add 15 6 (par 10 (add 6 2 (par 8 (add 3 4 5)))))") ==
+           "1517/57");
+    assert(optimize_to_result_string(
+               "(add 30 12 (par 20 (add 12 4 (par 16 (add 6 8 10)))))") ==
+           "3034/57");
+    assert(optimize_to_result_string(
+               "(add 7 8 (par 10 (add 3 5) (add 8 4)))") == "675/37");
+    assert(optimize_to_result_string(
+               "(add 7 8 (par 10 (add (par 3 8) (par 5 4))))") ==
+           "18.0575035063");
+    assert(optimize_to_result_string(
+               "(mul 15 (div (inv 4) (add (inv 4) (inv 6) (inv 8) (inv 12))))") ==
+           "6");
+    assert(optimize_to_result_string(
+               "(mul 15 (div (inv 6) (add (inv 4) (inv 6) (inv 8) (inv 12))))") ==
+           "4");
+    assert(optimize_to_result_string(
+               "(mul 15 (div (inv 8) (add (inv 4) (inv 6) (inv 8) (inv 12))))") ==
+           "3");
+    assert(optimize_to_result_string(
+               "(mul 15 (div (inv 12) (add (inv 4) (inv 6) (inv 8) (inv 12))))") ==
+           "2");
+    assert(optimize_to_result_string(
+               "(mul 15 (div (inv 8) (add (inv 8) (inv 12) (inv 16) (inv 24))))") ==
+           "6");
+    assert(optimize_to_result_string(
+               "(mul 15 (div (inv 12) (add (inv 8) (inv 12) (inv 16) (inv 24))))") ==
+           "4");
+    assert(optimize_to_result_string(
+               "(mul 15 (div (inv 16) (add (inv 8) (inv 12) (inv 16) (inv 24))))") ==
+           "3");
+    assert(optimize_to_result_string(
+               "(mul 15 (div (inv 24) (add (inv 8) (inv 12) (inv 16) (inv 24))))") ==
+           "2");
+    assert(optimize_to_result_string(
+               "(div (sub (add 5 8) 43) "
+               "(add (inv 24) (inv 20) (inv (add 24 (par 8 24)))))") ==
+           "-240");
     assert(optimize_to_string("(add (inv 1) (inv 0.5) (inv 0.25) (inv 0.125))") ==
            "15");
     assert(optimize_to_string("(inv (add (inv 1) (inv 0.5) (inv 0.25) (inv 0.125)))") ==
@@ -279,6 +408,20 @@ int main() {
     assert(series_topology.trace.size() == 1);
     assert(series_topology.trace[0].find("series-resistors:") != std::string::npos);
 
+    const auto controlled_midpoint_topology = analog::rewrite_topology(
+        analog::parse_netlist(
+            "V12 src 0 12\n"
+            "R2 src v1 2\n"
+            "R6 v1 dep_top 6\n"
+            "Edep 0 dep_top v1 0 2\n"));
+    assert(controlled_midpoint_topology.merged_series_resistor_groups == 0);
+    assert(controlled_midpoint_topology.removed_components == 0);
+    assert(controlled_midpoint_topology.circuit.components.size() == 4);
+    assert(controlled_midpoint_topology.circuit.components[1].name == "R2");
+    assert(controlled_midpoint_topology.circuit.components[2].name == "R6");
+    assert(controlled_midpoint_topology.circuit.components[3].control_positive ==
+           "v1");
+
     const auto shorted_topology = analog::rewrite_topology(
         analog::parse_netlist(
             "Rkeep a b Rkeep\n"
@@ -338,6 +481,30 @@ int main() {
     assert(analog::to_string(combined_topology.circuit.components[1].value) ==
            "(par R3 (add R1 R2))");
     assert(combined_topology.trace.size() == 4);
+
+    const auto exercise_3_75_topology = analog::rewrite_topology(
+        analog::parse_netlist(
+            "R15 a top1 15\n"
+            "Rb6 0 bot1 6\n"
+            "R10 top1 bot1 10\n"
+            "Rt6 top1 top2 6\n"
+            "Rb2 bot1 bot2 2\n"
+            "R8 top2 bot2 8\n"
+            "R3 top2 top3 3\n"
+            "R5 bot2 bot3 5\n"
+            "R4 top3 bot3 4\n"),
+        {"a", "0"});
+    assert(exercise_3_75_topology.merged_series_resistor_groups == 6);
+    assert(exercise_3_75_topology.merged_parallel_resistor_groups == 2);
+    assert(exercise_3_75_topology.removed_components == 8);
+    assert(exercise_3_75_topology.circuit.components.size() == 1);
+    assert(exercise_3_75_topology.circuit.components[0].positive == "a");
+    assert(exercise_3_75_topology.circuit.components[0].negative == "0");
+    assert(analog::to_result_string(analog::optimize_expr(
+               exercise_3_75_topology.circuit.components[0].value,
+               analog::analog_rules(),
+               12)) == "1517/57");
+    assert(exercise_3_75_topology.trace.size() == 8);
 
     const auto current_source_series = analog::rewrite_topology(
         analog::parse_netlist(

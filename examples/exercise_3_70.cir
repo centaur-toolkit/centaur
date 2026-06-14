@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.70.
+* Find the equivalent resistance of 2-, 4-, 6-, and 8-ohm resistors in parallel.
+R2 a 0 2
+R4 a 0 4
+R6 a 0 6
+R8 a 0 8

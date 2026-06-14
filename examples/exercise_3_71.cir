@@ -1,0 +1,7 @@
+* Schaum Basic Circuit Analysis, Exercise 3.71.
+* Three parallel resistors have total conductance 2 mS.
+* Values use kOhm, so conductance is in mS.
+R1 a 0 1
+R5 a 0 5
+Rx a 0 R
+.constraint (eq (inv (rth a 0)) 2)

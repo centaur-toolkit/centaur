@@ -1,0 +1,10 @@
+* Schaum Basic Circuit Analysis, Exercise 3.80 / Fig. 3-35.
+* Current source and resistor values use A and ohm.
+I5 0 top 5
+R24_i1 top 0 24
+I43 top 0 43
+R24_i2 top mid 24
+R8_i3 0 mid 8
+R24_i4 mid 0 24
+I8 0 top 8
+R20_i5 0 top 20

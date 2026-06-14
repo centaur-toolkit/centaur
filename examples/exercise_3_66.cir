@@ -1,0 +1,8 @@
+* Schaum Basic Circuit Analysis, Exercise 3.66 / Fig. 3-31.
+* Find the short-circuit current I. V_I is a 0 V ammeter branch, referenced
+* downward from top to ground.
+I8 0 top 8
+R1 top 0 1
+V_I top 0 0
+R2 top source_top 2
+V10 0 source_top 10

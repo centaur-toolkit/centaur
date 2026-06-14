@@ -1,0 +1,7 @@
+* Schaum Basic Circuit Analysis, Exercise 3.59.
+* Actual powers: R2 = 2/9 W, R4 = 4/9 W, R6 = 2/3 W.
+* With available 1/2 W, 1 W, and 2 W ratings, choose 1/2 W, 1/2 W, and 1 W.
+V4 src 0 4
+R2 src n2 2
+R4 n2 n4 4
+R6 n4 0 6

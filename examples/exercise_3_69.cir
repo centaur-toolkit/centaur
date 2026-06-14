@@ -1,0 +1,5 @@
+* Schaum Basic Circuit Analysis, Exercise 3.69.
+* A 100-ohm resistor in parallel with R has equivalent resistance 75 ohms.
+R100 a 0 100
+Rx a 0 R
+.constraint (eq (rth a 0) 75)

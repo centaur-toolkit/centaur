@@ -1,0 +1,10 @@
+* Schaum Basic Circuit Analysis, Exercise 3.64 / Fig. 3-29.
+* Find V across the open circuit.
+* Values use mA and kOhm, so resistor drops are in volts.
+V80 0 left_top 80
+R3 left_top mid 3
+R5 mid 0 5
+R10 mid branch_left 10
+Rtop branch_left out_plus 5
+I4 branch_left out_plus 4
+V15 out_minus 0 15

@@ -1,0 +1,18 @@
+* Schaum Basic Circuit Analysis, Exercise 3.65 / Fig. 3-30.
+* Find the indicated unknown currents using KCL.
+* Fig. 3-30 has branch-current annotations but no component values, so this is
+* represented as a constraint-only netlist.
+*
+* Fig. 3-30(a):
+*   Right node: I1 + 5 A enters, 4 A + 3 A leaves.
+*   Left node: 3 A enters, I1 + I2 + 7 A leaves.
+.constraint (eq (add I1 5) (add 4 3))
+.constraint (eq (add I1 I2 7) 3)
+*
+* Fig. 3-30(b):
+*   Itop is the upper horizontal branch current, left to right.
+*   Ibottom is the lower horizontal branch current, left to right.
+.constraint (eq (add 2 Itop) 4)
+.constraint (eq (add Itop I4) 5)
+.constraint (eq (add Ibottom 6) I4)
+.constraint (eq (add I3 2) Ibottom)

@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <iomanip>
+#include <map>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -606,6 +607,279 @@ bool constraint_satisfied_at(const Constraint& constraint,
     return constraint_holds(constraint.op, *lhs, *rhs);
 }
 
+struct LinearExpression {
+    double constant = 0.0;
+    std::map<std::string, double> coefficients;
+};
+
+bool has_variable_terms(const LinearExpression& expression) {
+    for (const auto& [_, coefficient_value] : expression.coefficients) {
+        if (std::abs(coefficient_value) >= 1e-12) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void add_coefficient(LinearExpression& expression,
+                     const std::string& variable,
+                     double value) {
+    expression.coefficients[variable] += value;
+    if (std::abs(expression.coefficients[variable]) < 1e-12) {
+        expression.coefficients.erase(variable);
+    }
+}
+
+LinearExpression scale_linear(LinearExpression expression, double factor) {
+    expression.constant *= factor;
+    for (auto& [_, coefficient_value] : expression.coefficients) {
+        coefficient_value *= factor;
+    }
+    for (auto iter = expression.coefficients.begin();
+         iter != expression.coefficients.end();) {
+        if (std::abs(iter->second) < 1e-12) {
+            iter = expression.coefficients.erase(iter);
+        } else {
+            ++iter;
+        }
+    }
+    return expression;
+}
+
+LinearExpression add_linear(LinearExpression lhs, const LinearExpression& rhs) {
+    lhs.constant += rhs.constant;
+    for (const auto& [variable, coefficient_value] : rhs.coefficients) {
+        add_coefficient(lhs, variable, coefficient_value);
+    }
+    return lhs;
+}
+
+std::optional<LinearExpression> mul_linear(const LinearExpression& lhs,
+                                           const LinearExpression& rhs) {
+    const bool lhs_has_variables = has_variable_terms(lhs);
+    const bool rhs_has_variables = has_variable_terms(rhs);
+    if (lhs_has_variables && rhs_has_variables) {
+        return std::nullopt;
+    }
+    if (lhs_has_variables) {
+        return scale_linear(lhs, rhs.constant);
+    }
+    return scale_linear(rhs, lhs.constant);
+}
+
+std::optional<LinearExpression> linear_from_expr(const Expr& expr) {
+    if (expr.is_atom()) {
+        double value = 0.0;
+        if (parse_number(expr.op, value)) {
+            return LinearExpression{value, {}};
+        }
+        return LinearExpression{0.0, {{expr.op, 1.0}}};
+    }
+
+    if (expr.op == "neg" && expr.args.size() == 1) {
+        auto value = linear_from_expr(expr.args[0]);
+        if (!value.has_value()) {
+            return std::nullopt;
+        }
+        return scale_linear(*value, -1.0);
+    }
+    if (expr.op == "inv" && expr.args.size() == 1) {
+        auto value = linear_from_expr(expr.args[0]);
+        if (!value.has_value() || has_variable_terms(*value) ||
+            std::abs(value->constant) < 1e-12) {
+            return std::nullopt;
+        }
+        return LinearExpression{1.0 / value->constant, {}};
+    }
+    if (expr.op == "add") {
+        LinearExpression result;
+        for (const auto& arg : expr.args) {
+            auto value = linear_from_expr(arg);
+            if (!value.has_value()) {
+                return std::nullopt;
+            }
+            result = add_linear(std::move(result), *value);
+        }
+        return result;
+    }
+    if (expr.op == "sub" && expr.args.size() == 2) {
+        auto lhs = linear_from_expr(expr.args[0]);
+        auto rhs = linear_from_expr(expr.args[1]);
+        if (!lhs.has_value() || !rhs.has_value()) {
+            return std::nullopt;
+        }
+        return add_linear(*lhs, scale_linear(*rhs, -1.0));
+    }
+    if (expr.op == "mul") {
+        LinearExpression result{1.0, {}};
+        for (const auto& arg : expr.args) {
+            auto value = linear_from_expr(arg);
+            if (!value.has_value()) {
+                return std::nullopt;
+            }
+            auto product = mul_linear(result, *value);
+            if (!product.has_value()) {
+                return std::nullopt;
+            }
+            result = std::move(*product);
+        }
+        return result;
+    }
+    if (expr.op == "div" && expr.args.size() == 2) {
+        auto numerator = linear_from_expr(expr.args[0]);
+        auto denominator = linear_from_expr(expr.args[1]);
+        if (!numerator.has_value() || !denominator.has_value() ||
+            has_variable_terms(*denominator) ||
+            std::abs(denominator->constant) < 1e-12) {
+            return std::nullopt;
+        }
+        return scale_linear(*numerator, 1.0 / denominator->constant);
+    }
+    if (expr.op == "par") {
+        double conductance = 0.0;
+        for (const auto& arg : expr.args) {
+            auto value = linear_from_expr(arg);
+            if (!value.has_value() || has_variable_terms(*value) ||
+                std::abs(value->constant) < 1e-12) {
+                return std::nullopt;
+            }
+            conductance += 1.0 / value->constant;
+        }
+        if (std::abs(conductance) < 1e-12) {
+            return std::nullopt;
+        }
+        return LinearExpression{1.0 / conductance, {}};
+    }
+    if (expr.op == "vdiv" && expr.args.size() == 3) {
+        auto input = linear_from_expr(expr.args[0]);
+        auto top = linear_from_expr(expr.args[1]);
+        auto bottom = linear_from_expr(expr.args[2]);
+        if (!input.has_value() || !top.has_value() || !bottom.has_value() ||
+            has_variable_terms(*top) || has_variable_terms(*bottom)) {
+            return std::nullopt;
+        }
+        const double denominator = top->constant + bottom->constant;
+        if (std::abs(denominator) < 1e-12) {
+            return std::nullopt;
+        }
+        return scale_linear(*input, bottom->constant / denominator);
+    }
+
+    return std::nullopt;
+}
+
+std::optional<ConstraintSolution> solve_linear_equalities_for(
+    const std::vector<Constraint>& constraints,
+    const std::string& variable) {
+    std::vector<LinearExpression> equations;
+    equations.reserve(constraints.size());
+    std::vector<std::string> variables;
+    for (const auto& constraint : constraints) {
+        if (constraint.op != RelationOp::Equal) {
+            return std::nullopt;
+        }
+        auto lhs = linear_from_expr(constraint.lhs);
+        auto rhs = linear_from_expr(constraint.rhs);
+        if (!lhs.has_value() || !rhs.has_value()) {
+            return std::nullopt;
+        }
+        auto equation = add_linear(*lhs, scale_linear(*rhs, -1.0));
+        for (const auto& [name, _] : equation.coefficients) {
+            if (std::find(variables.begin(), variables.end(), name) ==
+                variables.end()) {
+                variables.push_back(name);
+            }
+        }
+        equations.push_back(std::move(equation));
+    }
+
+    if (variables.empty() ||
+        std::find(variables.begin(), variables.end(), variable) == variables.end()) {
+        return std::nullopt;
+    }
+    std::sort(variables.begin(), variables.end());
+
+    const std::size_t column_count = variables.size();
+    std::vector<std::vector<double>> matrix;
+    matrix.reserve(equations.size());
+    for (const auto& equation : equations) {
+        std::vector<double> row(column_count + 1, 0.0);
+        for (std::size_t i = 0; i < column_count; ++i) {
+            const auto found = equation.coefficients.find(variables[i]);
+            if (found != equation.coefficients.end()) {
+                row[i] = found->second;
+            }
+        }
+        row[column_count] = -equation.constant;
+        matrix.push_back(std::move(row));
+    }
+
+    std::size_t rank = 0;
+    std::vector<std::size_t> pivot_columns;
+    for (std::size_t column = 0; column < column_count && rank < matrix.size();
+         ++column) {
+        std::size_t pivot = rank;
+        for (std::size_t row = rank + 1; row < matrix.size(); ++row) {
+            if (std::abs(matrix[row][column]) >
+                std::abs(matrix[pivot][column])) {
+                pivot = row;
+            }
+        }
+        if (std::abs(matrix[pivot][column]) < 1e-12) {
+            continue;
+        }
+        std::swap(matrix[rank], matrix[pivot]);
+
+        const double pivot_value = matrix[rank][column];
+        for (std::size_t col = column; col <= column_count; ++col) {
+            matrix[rank][col] /= pivot_value;
+        }
+        for (std::size_t row = 0; row < matrix.size(); ++row) {
+            if (row == rank) {
+                continue;
+            }
+            const double factor = matrix[row][column];
+            if (std::abs(factor) < 1e-12) {
+                continue;
+            }
+            for (std::size_t col = column; col <= column_count; ++col) {
+                matrix[row][col] -= factor * matrix[rank][col];
+            }
+        }
+
+        pivot_columns.push_back(column);
+        ++rank;
+    }
+
+    for (const auto& row : matrix) {
+        bool all_zero = true;
+        for (std::size_t column = 0; column < column_count; ++column) {
+            if (std::abs(row[column]) >= 1e-10) {
+                all_zero = false;
+                break;
+            }
+        }
+        if (all_zero && std::abs(row[column_count]) >= 1e-10) {
+            return std::nullopt;
+        }
+    }
+    if (rank < column_count) {
+        return std::nullopt;
+    }
+
+    const auto variable_column =
+        static_cast<std::size_t>(std::find(variables.begin(), variables.end(),
+                                           variable) -
+                                 variables.begin());
+    for (std::size_t row = 0; row < pivot_columns.size(); ++row) {
+        if (pivot_columns[row] == variable_column) {
+            return ConstraintSolution{RelationOp::Equal,
+                                      numeric_atom(matrix[row][column_count])};
+        }
+    }
+    return std::nullopt;
+}
+
 std::optional<double> solution_numeric_value(const ConstraintSolution& solution,
                                              const std::string& variable) {
     return evaluate_numeric(solution.value, variable, 0.0);
@@ -875,6 +1149,10 @@ std::vector<ConstraintSolution> solve_constraints_for(
     }
     if (constraints.size() == 1) {
         return solve_constraint_for(constraints.front(), variable);
+    }
+    if (const auto linear_solution =
+            solve_linear_equalities_for(constraints, variable)) {
+        return {*linear_solution};
     }
 
     std::vector<Constraint> active_constraints;

@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.63 / Fig. 3-28.
+* Determine I through R2 from left to right.
+V12 src 0 12
+R2 src v1 2
+R6 v1 dep_top 6
+Edep 0 dep_top v1 0 2

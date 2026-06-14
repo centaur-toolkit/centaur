@@ -1,0 +1,8 @@
+* Schaum Basic Circuit Analysis, Exercise 3.62.
+* Use voltage division to find the voltage across the 6-ohm resistor.
+V100 src 0 100
+R4 src n4 4
+R5 n4 n5 5
+R6 n5 n6 6
+R7 n6 n7 7
+R8 n7 0 8

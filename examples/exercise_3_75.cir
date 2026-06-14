@@ -1,0 +1,11 @@
+* Schaum Basic Circuit Analysis, Exercise 3.75 / Fig. 3-33.
+* Two-rail resistor ladder. Values are in kOhm.
+R15 a top1 15
+Rb6 0 bot1 6
+R10 top1 bot1 10
+Rt6 top1 top2 6
+Rb2 bot1 bot2 2
+R8 top2 bot2 8
+R3 top2 top3 3
+R5 bot2 bot3 5
+R4 top3 bot3 4

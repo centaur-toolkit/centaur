@@ -1,0 +1,9 @@
+* Schaum Basic Circuit Analysis, Exercise 3.77(b) / Fig. 3-34.
+* Terminals a and b are short-circuited.
+Rtop7 in top 7
+Rbot8 0 bot 8
+Rsh10 top bot 10
+Rleft3 top ab 3
+Rright8 top ab 8
+Rleft5 ab bot 5
+Rright4 ab bot 4

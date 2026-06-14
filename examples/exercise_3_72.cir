@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.72.
+* Three parallel resistors have equivalent resistance 10 ohms.
+R40 a 0 40
+R60 a 0 60
+Rx a 0 R
+.constraint (eq (rth a 0) 10)

@@ -1,0 +1,11 @@
+* Schaum Basic Circuit Analysis, Exercises 3.60 and 3.61 / Fig. 3-27.
+* Find Vab for 3.60 and V4 across R4 for 3.61.
+* Source polarities follow the long battery plate in the figure.
+V20 top_left bottom_left 20
+R1 top_left a 1
+R2 a top_right_source 2
+V25 top_right_source top_right 25
+R3 top_right bottom_right 3
+V15 0 bottom_right 15
+V10 bottom_mid 0 10
+R4 bottom_left bottom_mid 4
