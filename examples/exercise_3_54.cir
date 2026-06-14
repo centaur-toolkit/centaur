@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.54.
+* Series resistors specified by conductance: 2 S, 4 S, 8 S, and 10 S.
+R2 a n2 (inv 2)
+R4 n2 n4 (inv 4)
+R8 n4 n8 (inv 8)
+R10 n8 0 (inv 10)

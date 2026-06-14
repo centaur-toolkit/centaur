@@ -1,0 +1,7 @@
+* Schaum Basic Circuit Analysis, Exercise 3.52 / Fig. 3-26.
+* V1 is V(right, 0), V2 is V(0, center), and V3 is V(n13, center).
+V10 left 0 10
+V13 n13 left 13
+V18 n18 n13 18
+V15 n18 right 15
+V20 n18 center 20

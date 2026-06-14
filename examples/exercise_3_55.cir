@@ -1,0 +1,5 @@
+* Schaum Basic Circuit Analysis, Exercise 3.55.
+* 60-W, 120-V bulb on a 277-V line with the inferred 314-ohm series resistor.
+V277 line 0 277
+Rseries line bulb 314
+Rbulb bulb 0 240

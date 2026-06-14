@@ -67,14 +67,34 @@ Circuit parse_netlist(const std::string& text) {
         if (is_comment_or_empty(line)) {
             continue;
         }
+        const std::string stripped = trim(line);
 
-        std::istringstream fields(line);
+        std::istringstream fields(stripped);
         std::string name;
         std::string positive;
         std::string negative;
         std::string control_positive;
         std::string control_negative;
         std::string control_component;
+        if (stripped.front() == '.') {
+            std::string directive;
+            fields >> directive;
+            if (directive == ".constraint") {
+                std::string constraint_text;
+                std::getline(fields, constraint_text);
+                constraint_text = trim(constraint_text);
+                if (constraint_text.empty()) {
+                    throw std::runtime_error(
+                        "line " + std::to_string(line_number) +
+                        ": missing constraint expression");
+                }
+                circuit.constraints.push_back(parse_expr(constraint_text));
+                continue;
+            }
+            throw std::runtime_error("line " + std::to_string(line_number) +
+                                     ": unknown directive: " + directive);
+        }
+
         if (!(fields >> name >> positive >> negative)) {
             throw std::runtime_error("line " + std::to_string(line_number) +
                                      ": expected '<name> <node+> <node-> <value>'");
@@ -142,6 +162,9 @@ std::string circuit_to_netlist(const Circuit& circuit) {
             out << component.control_component << ' ';
         }
         out << to_string(component.value) << '\n';
+    }
+    for (const auto& constraint : circuit.constraints) {
+        out << ".constraint " << to_string(constraint) << '\n';
     }
     return out.str();
 }

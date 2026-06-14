@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.56.
+* 4-, 5-, and 6-ohm series resistors carrying 7 A require a 105-V source.
+V105 src 0 105
+R4 src n4 4
+R5 n4 n5 5
+R6 n5 0 6

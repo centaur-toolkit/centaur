@@ -1,4 +1,5 @@
 #include "centaur/analog_rules.h"
+#include "centaur/constraint.h"
 #include "centaur/mna.h"
 #include "centaur/netlist.h"
 #include "centaur/parser.h"
@@ -6,10 +7,13 @@
 #include "centaur/solve.h"
 #include "centaur/topology.h"
 
+#include <algorithm>
 #include <exception>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -20,18 +24,24 @@ void usage(const char* program) {
     std::cerr
         << "Usage:\n"
         << "  " << program << " [--iters N] '<expr>'\n"
-        << "  " << program << " [--iters N] --solve-for <var> '(eq lhs-expr rhs-expr)'\n"
+        << "  " << program << " [--iters N] --solve-for <var> "
+        << "'(eq|lt|le|gt|ge lhs-expr rhs-expr)'\n"
         << "  " << program << " [--iters N] --solve <netlist.cir> "
         << "[--current name] [--voltage node+ node-] [--power name] "
         << "[--seen-resistance Vname]\n"
+        << "  " << program
+        << " [--iters N] --solve-constraint <netlist.cir> "
+        << "<var> ['(eq|lt|le|gt|ge lhs rhs)' ...]\n"
         << "  " << program << " --rewrite-topology <netlist.cir> [protected-node ...]\n"
         << "  " << program << " [--iters N] --thevenin <netlist.cir> <node+> <node->\n"
         << "  " << program
         << " [--iters N] --solve-rth-for <netlist.cir> <node+> <node-> <var> "
-        << "'(eq Rth target-rth)'\n\n"
+        << "'(eq|lt|le|gt|ge Rth target-rth)'\n\n"
         << "Examples:\n"
         << "  " << program << " '(mul Vin (div R2 (add R1 R2)))'\n"
         << "  " << program << " --solve-for R '(eq (par 10000 20000 R) 12000)'\n"
+        << "  " << program
+        << " --solve-constraint file.cir R '(le (current Rlimit) 2)'\n"
         << "  " << program << " --thevenin examples/voltage_divider.cir out 0\n";
 }
 
@@ -78,15 +88,6 @@ std::string join(const std::vector<std::string>& values, std::size_t start) {
     return out.str();
 }
 
-std::pair<analog::Expr, analog::Expr> parse_equation(const std::string& query) {
-    const auto expr = analog::parse_expr(query);
-    if (expr.is_atom() || expr.op != "eq" || expr.args.size() != 2) {
-        throw std::runtime_error("equation query must be (eq lhs rhs)");
-    }
-
-    return {expr.args[0], expr.args[1]};
-}
-
 bool contains_atom(const analog::Expr& expr, const std::string& name) {
     if (expr.is_atom()) {
         return expr.op == name;
@@ -99,19 +100,40 @@ bool contains_atom(const analog::Expr& expr, const std::string& name) {
     return false;
 }
 
-analog::Expr substitute_atom(const analog::Expr& expr,
-                             const std::string& name,
-                             const analog::Expr& replacement) {
-    if (expr.is_atom()) {
-        return expr.op == name ? replacement : expr;
+void print_constraint_solution(const std::string& variable,
+                               const analog::ConstraintSolution& solution,
+                               const analog::Expr& value) {
+    if (solution.op == analog::RelationOp::Equal) {
+        std::cout << variable << ": " << analog::to_result_string(value) << '\n';
+        return;
+    }
+    std::cout << variable << ' ' << analog::constraint_op_text(solution.op) << ' '
+              << analog::to_result_string(value) << '\n';
+}
+
+void print_constraint_solutions(
+    const std::string& variable,
+    const std::vector<std::pair<analog::ConstraintSolution, analog::Expr>>&
+        solutions) {
+    const bool all_equal =
+        std::all_of(solutions.begin(), solutions.end(), [](const auto& solution) {
+            return solution.first.op == analog::RelationOp::Equal;
+        });
+    if (all_equal && solutions.size() > 1) {
+        std::cout << variable << ": ";
+        for (std::size_t i = 0; i < solutions.size(); ++i) {
+            if (i != 0) {
+                std::cout << " or ";
+            }
+            std::cout << analog::to_result_string(solutions[i].second);
+        }
+        std::cout << '\n';
+        return;
     }
 
-    std::vector<analog::Expr> args;
-    args.reserve(expr.args.size());
-    for (const auto& arg : expr.args) {
-        args.push_back(substitute_atom(arg, name, replacement));
+    for (const auto& [solution, value] : solutions) {
+        print_constraint_solution(variable, solution, value);
     }
-    return analog::call(expr.op, std::move(args));
 }
 
 analog::Expr optimize(const analog::Expr& expr,
@@ -134,6 +156,59 @@ analog::Expr optimize(const analog::Expr& expr,
     }
 
     return analog::simplify_expr(extracted.expr);
+}
+
+void solve_and_print_constraint(const analog::Constraint& constraint,
+                                const std::string& variable,
+                                const std::vector<analog::Rewrite>& rules,
+                                int iterations,
+                                bool explain) {
+    const std::vector<analog::Constraint> constraints{constraint};
+    const auto solutions = analog::solve_constraints_for(constraints, variable);
+    if (solutions.empty()) {
+        throw std::runtime_error("could not solve constraint for variable: " +
+                                 variable);
+    }
+    std::vector<std::pair<analog::ConstraintSolution, analog::Expr>> optimized;
+    optimized.reserve(solutions.size());
+    for (const auto& solution : solutions) {
+        if (explain) {
+            std::cerr << "raw " << variable << ' '
+                      << analog::constraint_op_text(solution.op) << ' '
+                      << analog::to_string(solution.value) << '\n';
+        }
+        optimized.push_back(
+            {solution,
+             optimize(solution.value, rules, iterations, explain,
+                      "solve(" + variable + ")")});
+    }
+    print_constraint_solutions(variable, optimized);
+}
+
+void solve_and_print_constraints(const std::vector<analog::Constraint>& constraints,
+                                 const std::string& variable,
+                                 const std::vector<analog::Rewrite>& rules,
+                                 int iterations,
+                                 bool explain) {
+    const auto solutions = analog::solve_constraints_for(constraints, variable);
+    if (solutions.empty()) {
+        throw std::runtime_error("could not solve constraints for variable: " +
+                                 variable);
+    }
+    std::vector<std::pair<analog::ConstraintSolution, analog::Expr>> optimized;
+    optimized.reserve(solutions.size());
+    for (const auto& solution : solutions) {
+        if (explain) {
+            std::cerr << "raw " << variable << ' '
+                      << analog::constraint_op_text(solution.op) << ' '
+                      << analog::to_string(solution.value) << '\n';
+        }
+        optimized.push_back(
+            {solution,
+             optimize(solution.value, rules, iterations, explain,
+                      "solve(" + variable + ")")});
+    }
+    print_constraint_solutions(variable, optimized);
 }
 
 analog::Expr node_voltage(const std::map<std::string, analog::Expr>& voltages,
@@ -316,6 +391,239 @@ SolveQueries parse_solve_queries(const std::vector<std::string>& args,
     return queries;
 }
 
+SolveQueries protection_queries_for_observables(
+    const std::vector<analog::ObservableRequest>& observables) {
+    SolveQueries queries;
+    for (const auto& observable : observables) {
+        if (observable.kind == analog::ObservableKind::Current) {
+            queries.ordered.push_back(SolveQueries::Query{
+                SolveQueries::Query::Kind::Current,
+                observable.first,
+                ""});
+        } else if (observable.kind == analog::ObservableKind::Voltage) {
+            queries.ordered.push_back(SolveQueries::Query{
+                SolveQueries::Query::Kind::Voltage,
+                observable.first,
+                observable.second});
+        } else if (observable.kind == analog::ObservableKind::Power) {
+            queries.ordered.push_back(SolveQueries::Query{
+                SolveQueries::Query::Kind::Power,
+                observable.first,
+                ""});
+        }
+    }
+    return queries;
+}
+
+std::optional<analog::ObservableKind> inline_observable_kind(
+    const std::string& op) {
+    if (op == "current" || op == "i") {
+        return analog::ObservableKind::Current;
+    }
+    if (op == "voltage" || op == "v") {
+        return analog::ObservableKind::Voltage;
+    }
+    if (op == "power" || op == "p") {
+        return analog::ObservableKind::Power;
+    }
+    if (op == "rth") {
+        return analog::ObservableKind::Rth;
+    }
+    return std::nullopt;
+}
+
+std::string observable_atom_arg(const analog::Expr& expr,
+                                const std::string& observable) {
+    if (!expr.is_atom()) {
+        throw std::runtime_error(observable +
+                                 " observable arguments must be names");
+    }
+    return expr.op;
+}
+
+std::optional<analog::ObservableRequest> inline_observable(
+    const analog::Expr& expr) {
+    if (expr.is_atom()) {
+        return std::nullopt;
+    }
+
+    const auto kind = inline_observable_kind(expr.op);
+    if (!kind.has_value()) {
+        return std::nullopt;
+    }
+
+    if (*kind == analog::ObservableKind::Current ||
+        *kind == analog::ObservableKind::Power) {
+        if (expr.args.size() != 1) {
+            throw std::runtime_error(expr.op +
+                                     " observable requires one component name");
+        }
+        return analog::ObservableRequest{
+            *kind,
+            observable_atom_arg(expr.args[0], expr.op),
+            ""};
+    }
+
+    if (expr.args.size() != 2) {
+        throw std::runtime_error(expr.op + " observable requires two node names");
+    }
+    return analog::ObservableRequest{
+        *kind,
+        observable_atom_arg(expr.args[0], expr.op),
+        observable_atom_arg(expr.args[1], expr.op)};
+}
+
+void collect_inline_observables(
+    const analog::Expr& expr,
+    std::vector<analog::ObservableRequest>& observables) {
+    if (const auto observable = inline_observable(expr)) {
+        observables.push_back(*observable);
+        return;
+    }
+    for (const auto& arg : expr.args) {
+        collect_inline_observables(arg, observables);
+    }
+}
+
+std::vector<analog::ObservableRequest> inline_observables(
+    const analog::Constraint& constraint) {
+    std::vector<analog::ObservableRequest> observables;
+    collect_inline_observables(constraint.lhs, observables);
+    collect_inline_observables(constraint.rhs, observables);
+    return observables;
+}
+
+std::vector<analog::ObservableRequest> inline_observables(
+    const std::vector<analog::Constraint>& constraints) {
+    std::vector<analog::ObservableRequest> observables;
+    for (const auto& constraint : constraints) {
+        collect_inline_observables(constraint.lhs, observables);
+        collect_inline_observables(constraint.rhs, observables);
+    }
+    return observables;
+}
+
+analog::Expr evaluate_observable(
+    const analog::ObservableRequest& observable,
+    const analog::Circuit& circuit,
+    const analog::Circuit& topology_circuit,
+    const analog::OperatingPoint& operating_point,
+    const std::vector<analog::Rewrite>& rules,
+    int iterations,
+    bool explain) {
+    analog::Expr value;
+    std::string label;
+    if (observable.kind == analog::ObservableKind::Current) {
+        const auto& component = find_component(topology_circuit, observable.first);
+        value = component_current(component, operating_point, topology_circuit);
+        label = "I(" + observable.first + ")";
+    } else if (observable.kind == analog::ObservableKind::Voltage) {
+        value = voltage_between(operating_point.voltages,
+                                observable.first,
+                                observable.second);
+        label = "V(" + observable.first + "," + observable.second + ")";
+    } else if (observable.kind == analog::ObservableKind::Power) {
+        const auto& component = find_component(topology_circuit, observable.first);
+        value = component_power(component, operating_point, topology_circuit);
+        label = "P(" + observable.first + ")";
+    } else {
+        const auto rth_topology =
+            analog::rewrite_topology(circuit, {observable.first, observable.second});
+        if (explain) {
+            print_topology_summary(rth_topology, "rth ");
+        }
+        value = analog::solve_thevenin(rth_topology.circuit,
+                                       observable.first,
+                                       observable.second)
+                    .rth;
+        label = "Rth(" + observable.first + "," + observable.second + ")";
+    }
+    return optimize(value, rules, iterations, explain, label);
+}
+
+analog::Expr lower_inline_observables(
+    const analog::Expr& expr,
+    const analog::Circuit& circuit,
+    const analog::Circuit& topology_circuit,
+    const analog::OperatingPoint& operating_point,
+    const std::vector<analog::Rewrite>& rules,
+    int iterations,
+    bool explain) {
+    if (const auto observable = inline_observable(expr)) {
+        return evaluate_observable(*observable,
+                                   circuit,
+                                   topology_circuit,
+                                   operating_point,
+                                   rules,
+                                   iterations,
+                                   explain);
+    }
+    if (expr.is_atom()) {
+        return expr;
+    }
+
+    std::vector<analog::Expr> args;
+    args.reserve(expr.args.size());
+    for (const auto& arg : expr.args) {
+        args.push_back(lower_inline_observables(arg,
+                                                circuit,
+                                                topology_circuit,
+                                                operating_point,
+                                                rules,
+                                                iterations,
+                                                explain));
+    }
+    return analog::call(expr.op, std::move(args));
+}
+
+analog::Constraint lower_inline_observables(
+    const analog::Constraint& constraint,
+    const analog::Circuit& circuit,
+    const analog::Circuit& topology_circuit,
+    const analog::OperatingPoint& operating_point,
+    const std::vector<analog::Rewrite>& rules,
+    int iterations,
+    bool explain) {
+    return analog::Constraint{
+        constraint.op,
+        lower_inline_observables(constraint.lhs,
+                                 circuit,
+                                 topology_circuit,
+                                 operating_point,
+                                 rules,
+                                 iterations,
+                                 explain),
+        lower_inline_observables(constraint.rhs,
+                                 circuit,
+                                 topology_circuit,
+                                 operating_point,
+                                 rules,
+                                 iterations,
+                                 explain)};
+}
+
+std::vector<analog::Constraint> lower_inline_observables(
+    const std::vector<analog::Constraint>& constraints,
+    const analog::Circuit& circuit,
+    const analog::Circuit& topology_circuit,
+    const analog::OperatingPoint& operating_point,
+    const std::vector<analog::Rewrite>& rules,
+    int iterations,
+    bool explain) {
+    std::vector<analog::Constraint> lowered;
+    lowered.reserve(constraints.size());
+    for (const auto& constraint : constraints) {
+        lowered.push_back(lower_inline_observables(constraint,
+                                                   circuit,
+                                                   topology_circuit,
+                                                   operating_point,
+                                                   rules,
+                                                   iterations,
+                                                   explain));
+    }
+    return lowered;
+}
+
 std::vector<std::string> protected_nodes_for_queries(const SolveQueries& queries) {
     std::vector<std::string> nodes;
     for (const auto& query : queries.ordered) {
@@ -354,7 +662,8 @@ void print_operating_point(const analog::Circuit& circuit,
             }
             const auto best = optimize(voltage, rules, iterations, explain,
                                        "V(" + node + ")");
-            std::cout << "V " << node << " 0: " << analog::to_string(best) << '\n';
+            std::cout << "V " << node << " 0: "
+                      << analog::to_result_string(best) << '\n';
         }
     }
 
@@ -368,7 +677,7 @@ void print_operating_point(const analog::Circuit& circuit,
                                        "I(" + component.name + ")");
             std::cout << "I " << component.name << ' ' << component.positive
                       << "->" << component.negative << ": "
-                      << analog::to_string(best) << '\n';
+                      << analog::to_result_string(best) << '\n';
         }
     }
 
@@ -378,7 +687,7 @@ void print_operating_point(const analog::Circuit& circuit,
             const auto best = optimize(voltage, rules, iterations, explain,
                                        "V(" + query.first + "," + query.second + ")");
             std::cout << "V " << query.first << ' ' << query.second << ": "
-                      << analog::to_string(best) << '\n';
+                      << analog::to_result_string(best) << '\n';
             continue;
         }
 
@@ -387,21 +696,21 @@ void print_operating_point(const analog::Circuit& circuit,
             const auto power = component_power(component, operating_point, circuit);
             const auto best = optimize(power, rules, iterations, explain,
                                        "P(" + component.name + ")");
-            std::cout << "P " << component.name << ": " << analog::to_string(best)
-                      << '\n';
+            std::cout << "P " << component.name << ": "
+                      << analog::to_result_string(best) << '\n';
         } else if (query.kind == SolveQueries::Query::Kind::SeenResistance) {
             const auto resistance =
                 source_seen_resistance(component, operating_point, circuit);
             const auto best = optimize(resistance, rules, iterations, explain,
                                        "Rseen(" + component.name + ")");
             std::cout << "Rseen " << component.name << ": "
-                      << analog::to_string(best) << '\n';
+                      << analog::to_result_string(best) << '\n';
         } else {
             const auto current = component_current(component, operating_point, circuit);
             const auto best = optimize(current, rules, iterations, explain,
                                        "I(" + component.name + ")");
-            std::cout << "I " << component.name << ": " << analog::to_string(best)
-                      << '\n';
+            std::cout << "I " << component.name << ": "
+                      << analog::to_result_string(best) << '\n';
         }
     }
 }
@@ -445,18 +754,10 @@ int main(int argc, char** argv) {
                 return 2;
             }
 
-            const auto [lhs, rhs] = parse_equation(filtered[2]);
-            const auto solution = analog::solve_for(lhs, rhs, filtered[1]);
-            if (!solution.has_value()) {
-                throw std::runtime_error("could not isolate variable: " + filtered[1]);
-            }
-            if (explain) {
-                std::cerr << "raw " << filtered[1] << ": "
-                          << analog::to_string(*solution) << '\n';
-            }
-            const auto best = optimize(*solution, rules, iterations, explain,
-                                       "solve(" + filtered[1] + ")");
-            std::cout << filtered[1] << ": " << analog::to_string(best) << '\n';
+            const auto constraint =
+                analog::parse_constraint(analog::parse_expr(filtered[2]));
+            solve_and_print_constraint(constraint, filtered[1], rules, iterations,
+                                       explain);
             return 0;
         }
 
@@ -480,6 +781,68 @@ int main(int argc, char** argv) {
                 }
             }
             print_operating_point(analysis_circuit, rules, iterations, explain, queries);
+            return 0;
+        }
+
+        if (filtered[0] == "--solve-constraint") {
+            if (filtered.size() < 3) {
+                usage(argv[0]);
+                return 2;
+            }
+
+            const auto circuit = analog::parse_netlist_file(filtered[1]);
+            const std::string variable = filtered[2];
+            std::vector<analog::Constraint> constraints;
+            constraints.reserve(circuit.constraints.size() + filtered.size() - 3);
+            for (const auto& constraint_expr : circuit.constraints) {
+                constraints.push_back(analog::parse_constraint(constraint_expr));
+            }
+            for (std::size_t i = 3; i < filtered.size(); ++i) {
+                constraints.push_back(
+                    analog::parse_constraint(analog::parse_expr(filtered[i])));
+            }
+            if (constraints.empty()) {
+                throw std::runtime_error(
+                    "--solve-constraint requires at least one .constraint directive "
+                    "or command-line constraint");
+            }
+
+            const auto observables = inline_observables(constraints);
+
+            const auto queries = protection_queries_for_observables(observables);
+            analog::Circuit topology_circuit = circuit;
+            if (!queries.ordered.empty()) {
+                const auto topology = analog::rewrite_topology(
+                    circuit,
+                    protected_nodes_for_queries(queries),
+                    protected_components_for_queries(queries));
+                topology_circuit = topology.circuit;
+                if (explain) {
+                    print_topology_summary(topology);
+                }
+            }
+
+            const bool needs_operating_point = !queries.ordered.empty();
+            analog::OperatingPoint operating_point;
+            if (needs_operating_point) {
+                operating_point = analog::solve_operating_point(topology_circuit);
+            }
+
+            auto lowered = lower_inline_observables(constraints,
+                                                    circuit,
+                                                    topology_circuit,
+                                                    operating_point,
+                                                    rules,
+                                                    iterations,
+                                                    explain);
+            if (explain) {
+                for (std::size_t i = 0; i < lowered.size(); ++i) {
+                    std::cerr << "lowered constraint " << (i + 1) << ": "
+                              << analog::to_string(lowered[i]) << '\n';
+                }
+            }
+            solve_and_print_constraints(lowered, variable, rules, iterations,
+                                        explain);
             return 0;
         }
 
@@ -521,30 +884,23 @@ int main(int argc, char** argv) {
                 std::cerr << "raw Rth: " << analog::to_string(thevenin.rth) << '\n';
             }
 
-            const auto [query_lhs, query_rhs] = parse_equation(filtered[5]);
-            if (!contains_atom(query_lhs, "Rth") && !contains_atom(query_rhs, "Rth")) {
+            const auto constraint =
+                analog::parse_constraint(analog::parse_expr(filtered[5]));
+            if (!contains_atom(constraint.lhs, "Rth") &&
+                !contains_atom(constraint.rhs, "Rth")) {
                 throw std::runtime_error(
-                    "--solve-rth-for equation must reference Rth");
+                    "--solve-rth-for constraint must reference Rth");
             }
-            const auto lowered_lhs = substitute_atom(query_lhs, "Rth", thevenin.rth);
-            const auto lowered_rhs = substitute_atom(query_rhs, "Rth", thevenin.rth);
+            const auto lowered =
+                analog::ConstraintSubstitution(constraint)
+                    .substitute("Rth", thevenin.rth)
+                    .build();
             if (explain) {
-                std::cerr << "lowered equation: (eq "
-                          << analog::to_string(lowered_lhs) << ' '
-                          << analog::to_string(lowered_rhs) << ")\n";
+                std::cerr << "lowered constraint: " << analog::to_string(lowered)
+                          << '\n';
             }
-            const auto solution =
-                analog::solve_for(lowered_lhs, lowered_rhs, filtered[4]);
-            if (!solution.has_value()) {
-                throw std::runtime_error("could not isolate variable: " + filtered[4]);
-            }
-            if (explain) {
-                std::cerr << "raw " << filtered[4] << ": "
-                          << analog::to_string(*solution) << '\n';
-            }
-            const auto best = optimize(*solution, rules, iterations, explain,
-                                       "solve(" + filtered[4] + ")");
-            std::cout << filtered[4] << ": " << analog::to_string(best) << '\n';
+            solve_and_print_constraint(lowered, filtered[4], rules, iterations,
+                                       explain);
             return 0;
         }
 
@@ -571,16 +927,16 @@ int main(int argc, char** argv) {
             const auto rth = optimize(result.rth, rules, iterations, explain, "Rth");
 
             std::cout << "Vth " << filtered[2] << " " << filtered[3] << ": "
-                      << analog::to_string(vth) << '\n';
+                      << analog::to_result_string(vth) << '\n';
             std::cout << "Rth " << filtered[2] << " " << filtered[3] << ": "
-                      << analog::to_string(rth) << '\n';
+                      << analog::to_result_string(rth) << '\n';
             return 0;
         }
 
         const std::string input = join(filtered, 0);
         const auto expr = analog::parse_expr(input);
         const auto best = optimize(expr, rules, iterations, explain, "expr");
-        std::cout << analog::to_string(best) << '\n';
+        std::cout << analog::to_result_string(best) << '\n';
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "error: " << error.what() << '\n';

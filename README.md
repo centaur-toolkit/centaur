@@ -23,12 +23,13 @@ Implemented today:
 - Thevenin equivalent calculation
 - operating-point node voltages, branch currents, powers, and source seen
   resistance
-- one-variable symbolic equation isolation for backward design queries
+- one-variable constraint solving for backward design queries, including
+  inequality bounds and multiple equality roots
 - topology rewrites for series/parallel resistors and ideal-source patterns
 - independent voltage/current sources
 - voltage-controlled voltage/current sources
 - current-controlled current sources using component current references
-- regression examples from Schaum Basic Circuit Analysis exercises 3.20-3.48
+- regression examples from Schaum Basic Circuit Analysis exercises 3.20-3.50 and 3.52-3.58
 
 This is still a prototype. The current solver is linear and DC-oriented; AC
 impedance forms are present in the expression rewrite layer, but not yet a full
@@ -175,11 +176,60 @@ Compute a Thevenin equivalent:
 ./build/centaur --thevenin file.cir node+ node-
 ```
 
-Solve a one-variable symbolic equation:
+Solve a one-variable symbolic constraint:
 
 ```sh
 ./build/centaur --solve-for R '(eq (par 10000 20000 R) 12000)'
 ```
+
+Inequality constraints are supported with `lt`/`<`, `le`/`<=`, `gt`/`>`, and
+`ge`/`>=`:
+
+```sh
+./build/centaur --solve-for R '(le (div (sub 15 12) (add R 0.3)) 2)'
+```
+
+Output:
+
+```text
+R >= 1.2
+```
+
+Equalities may produce more than one discrete solution:
+
+```sh
+./build/centaur --solve-for R \
+  '(eq (mul R (div 240 (add R 100)) (div 240 (add R 100))) 80)'
+```
+
+Output:
+
+```text
+R: 20 or 500
+```
+
+Use circuit-derived values directly inside a constraint:
+
+```sh
+./build/centaur --solve-constraint examples/exercise_3_57.cir R
+```
+
+Output:
+
+```text
+R >= 1.2
+```
+
+The netlist carries the observable inside the constraint:
+
+```text
+.constraint (le (current Rlimit) 2)
+```
+
+The observable forms are `(current component)`, `(voltage node+ node-)`,
+`(power component)`, and `(rth node+ node-)`.
+Multiple `.constraint` lines are treated as a conjunction when a solve command
+asks for a variable.
 
 Infer a value from a target Thevenin resistance:
 
@@ -187,7 +237,7 @@ Infer a value from a target Thevenin resistance:
 ./build/centaur --solve-rth-for file.cir node+ node- R '(eq Rth 12000)'
 ```
 
-The `Rth` atom may appear anywhere in the equation expression:
+The `Rth` atom may appear anywhere in the constraint expression:
 
 ```sh
 ./build/centaur --solve-rth-for file.cir node+ node- R '(eq (inv Rth) 1.75)'
@@ -243,7 +293,7 @@ one voltage-source parallel resistor removal. For ladder-style reductions,
 Example trace line:
 
 ```text
-series-resistors: R4 inner tail 4 + R8 tail right 8 through tail -> Rser2 inner right 12
+series-resistors: R4 inner tail 4 + R8 tail right 8 through tail -> Rser2 inner right (add 4 8)
 ```
 
 ## Expression Language
@@ -267,12 +317,14 @@ The rewrite rules include algebraic identities, parallel impedance forms,
 voltage-divider recognition, capacitor/inductor impedance forms, RC low-pass
 forms, and a common-source gain idiom.
 
-Equation queries are ordinary expressions:
+Constraint queries are ordinary expressions:
 
 ```text
 (eq (par 10000 20000 R) 12000)
 (eq Rth 12000)
 (eq (inv Rth) 1.75)
+(le (div (sub 15 12) (add R 0.3)) 2)
+(lt (current Rlimit) 2)
 ```
 
 ## Textbook Examples
@@ -295,6 +347,10 @@ Analysis:
 
 ./build/centaur --solve-rth-for examples/exercise_3_36.cir \
   a 0 R '(eq (inv Rth) 1.75)'
+
+./build/centaur --solve-constraint examples/exercise_3_57.cir R
+
+./build/centaur --solve-constraint examples/exercise_3_58.cir R
 ```
 
 These are also covered by CTest.
@@ -304,8 +360,8 @@ These are also covered by CTest.
 Near-term work:
 
 - add more source-control forms, including current-controlled voltage sources
-- generalize `(eq ...)` constraints to multiple variables with a solver backend
-  and verified bindings
+- generalize constraints to multiple variables with a solver backend and
+  verified observable lowering
 - improve symbolic linear solving to avoid floating-point artifacts
 - add typed symbols and dimensions
 - extend the frontend toward impedance-domain `Z` circuits

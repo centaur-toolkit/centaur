@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.58.
+* Unknown resistor in series with 100 ohms absorbs 80 W from a 240-V line.
+V240 src 0 240
+Rx src mid R
+R100 mid 0 100
+.constraint (eq (power Rx) 80)

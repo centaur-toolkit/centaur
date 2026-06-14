@@ -97,8 +97,21 @@ Expr parallel_value(const std::vector<const Component*>& resistors) {
     return call("par", std::move(values));
 }
 
+void append_series_terms(std::vector<Expr>& terms, const Expr& value) {
+    if (!value.is_atom() && value.op == "add") {
+        for (const auto& arg : value.args) {
+            append_series_terms(terms, arg);
+        }
+        return;
+    }
+    terms.push_back(value);
+}
+
 Expr series_value(const Component& first, const Component& second) {
-    return make_add(first.value, second.value);
+    std::vector<Expr> terms;
+    append_series_terms(terms, first.value);
+    append_series_terms(terms, second.value);
+    return call("add", std::move(terms));
 }
 
 std::string other_terminal(const Component& component, const std::string& node) {

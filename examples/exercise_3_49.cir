@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.49 / Fig. 3-24.
+V80 src 0 80
+R16 src v2 16
+R36 v2 0 36
+R54 v2 v1 54
+R18 v1 0 18

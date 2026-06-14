@@ -27,8 +27,22 @@ struct Component {
     Expr value;
 };
 
+enum class ObservableKind {
+    Current,
+    Voltage,
+    Power,
+    Rth,
+};
+
+struct ObservableRequest {
+    ObservableKind kind;
+    std::string first;
+    std::string second;
+};
+
 struct Circuit {
     std::vector<Component> components;
+    std::vector<Expr> constraints;
 };
 
 Circuit parse_netlist(const std::string& text);

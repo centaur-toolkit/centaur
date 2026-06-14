@@ -28,6 +28,7 @@ bool is_one(const Expr& expr);
 bool is_commutative(const std::string& op);
 
 std::string to_string(const Expr& expr);
+std::string to_result_string(const Expr& expr);
 
 Expr make_add(Expr lhs, Expr rhs);
 Expr make_sub(Expr lhs, Expr rhs);

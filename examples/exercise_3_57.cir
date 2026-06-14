@@ -1,0 +1,7 @@
+* Schaum Basic Circuit Analysis, Exercise 3.57.
+* 15-V charger, 12-V battery, 0.3-ohm internal resistance, and unknown limiter R.
+V15 charger 0 15
+Rlimit charger battery_top R
+Rint battery_top battery_ideal 0.3
+V12 battery_ideal 0 12
+.constraint (le (current Rlimit) 2)

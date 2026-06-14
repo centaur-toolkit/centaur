@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.53.
+* Four series resistors have total resistance 500 ohms; infer Rx.
+R100 a n100 100
+R150 n100 n150 150
+R200 n150 n200 200
+Rx n200 0 R

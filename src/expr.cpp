@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iomanip>
+#include <numeric>
 #include <sstream>
 #include <tuple>
 #include <utility>
@@ -28,7 +29,7 @@ bool is_inverse_of(const Expr& expr, const Expr& value) {
     return is_unary(expr, "inv") && expr.args[0] == value;
 }
 
-bool parse_number(const std::string& text, double& value) {
+bool parse_plain_number(const std::string& text, double& value) {
     if (text.empty()) {
         return false;
     }
@@ -38,8 +39,69 @@ bool parse_number(const std::string& text, double& value) {
     return errno == 0 && end == text.c_str() + text.size();
 }
 
+bool parse_number(const std::string& text, double& value) {
+    if (parse_plain_number(text, value)) {
+        return true;
+    }
+
+    const auto slash = text.find('/');
+    if (slash == std::string::npos || slash == 0 || slash + 1 == text.size() ||
+        text.find('/', slash + 1) != std::string::npos) {
+        return false;
+    }
+
+    double numerator = 0.0;
+    double denominator = 0.0;
+    if (!parse_plain_number(text.substr(0, slash), numerator) ||
+        !parse_plain_number(text.substr(slash + 1), denominator) ||
+        std::abs(denominator) < 1e-12) {
+        return false;
+    }
+    value = numerator / denominator;
+    return true;
+}
+
 bool numeric_value(const Expr& expr, double& value) {
     return expr.is_atom() && parse_number(expr.op, value);
+}
+
+std::string simple_fraction(double value, const std::string& decimal_text) {
+    if (decimal_text.find('.') == std::string::npos || decimal_text.size() < 10) {
+        return {};
+    }
+
+    const double magnitude = std::abs(value);
+    const double tolerance = 1e-10 * std::max(1.0, magnitude);
+    long long best_numerator = 0;
+    int best_denominator = 0;
+    double best_error = tolerance;
+
+    for (int denominator = 2; denominator <= 100; ++denominator) {
+        const auto numerator =
+            static_cast<long long>(std::llround(value * denominator));
+        const double approximated =
+            static_cast<double>(numerator) / static_cast<double>(denominator);
+        const double error = std::abs(value - approximated);
+        if (error <= best_error) {
+            best_error = error;
+            best_numerator = numerator;
+            best_denominator = denominator;
+        }
+    }
+
+    if (best_denominator == 0) {
+        return {};
+    }
+
+    const auto divisor = std::gcd(std::llabs(best_numerator),
+                                  static_cast<long long>(best_denominator));
+    best_numerator /= divisor;
+    best_denominator /= static_cast<int>(divisor);
+
+    std::ostringstream out;
+    out << best_numerator << '/' << best_denominator;
+    const std::string fraction = out.str();
+    return fraction.size() < decimal_text.size() ? fraction : std::string{};
 }
 
 std::string format_number(double value) {
@@ -63,6 +125,13 @@ void collect_add_terms(Expr expr, std::vector<Expr>& terms) {
     if (!expr.is_atom() && expr.op == "add") {
         for (auto& arg : expr.args) {
             collect_add_terms(std::move(arg), terms);
+        }
+        return;
+    }
+    if (is_unary(expr, "neg") && !expr.args[0].is_atom() &&
+        expr.args[0].op == "add") {
+        for (auto& arg : expr.args[0].args) {
+            collect_add_terms(make_neg(std::move(arg)), terms);
         }
         return;
     }
@@ -163,6 +232,37 @@ std::string to_string(const Expr& expr) {
     return out.str();
 }
 
+std::string to_result_string(const Expr& expr) {
+    if (expr.is_atom()) {
+        double value = 0.0;
+        if (expr.op.find('/') == std::string::npos &&
+            parse_number(expr.op, value)) {
+            const auto fraction = simple_fraction(value, expr.op);
+            if (!fraction.empty()) {
+                return fraction;
+            }
+        }
+        return expr.op;
+    }
+
+    std::vector<std::string> rendered_args;
+    rendered_args.reserve(expr.args.size());
+    for (const auto& arg : expr.args) {
+        rendered_args.push_back(to_result_string(arg));
+    }
+    if (is_commutative(expr.op)) {
+        std::sort(rendered_args.begin(), rendered_args.end(), display_less);
+    }
+
+    std::ostringstream out;
+    out << '(' << expr.op;
+    for (const auto& arg : rendered_args) {
+        out << ' ' << arg;
+    }
+    out << ')';
+    return out.str();
+}
+
 Expr make_add(Expr lhs, Expr rhs) {
     std::vector<Expr> terms;
     collect_add_terms(std::move(lhs), terms);
@@ -212,11 +312,21 @@ Expr make_add(Expr lhs, Expr rhs) {
     std::vector<Expr> positive_terms;
     positive_terms.reserve(kept.size());
     for (const auto& term : kept) {
+        if (is_unary(term, "neg")) {
+            positive_terms.push_back(term.args[0]);
+            continue;
+        }
+
+        double numeric = 0.0;
+        if (numeric_value(term, numeric) && numeric < 0.0) {
+            positive_terms.push_back(numeric_atom(-numeric));
+            continue;
+        }
+
         if (!is_unary(term, "neg")) {
             all_negative = false;
             break;
         }
-        positive_terms.push_back(term.args[0]);
     }
     if (all_negative) {
         Expr positive_sum = std::move(positive_terms[0]);
@@ -304,6 +414,16 @@ Expr make_div(Expr lhs, Expr rhs) {
         negative = !negative;
         Expr inner = rhs.args[0];
         rhs = std::move(inner);
+    }
+
+    double signed_value = 0.0;
+    if (numeric_value(lhs, signed_value) && signed_value < 0.0) {
+        negative = !negative;
+        lhs = numeric_atom(-signed_value);
+    }
+    if (numeric_value(rhs, signed_value) && signed_value < 0.0) {
+        negative = !negative;
+        rhs = numeric_atom(-signed_value);
     }
 
     if (is_zero(lhs)) {

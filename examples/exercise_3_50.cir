@@ -1,0 +1,6 @@
+* Schaum Basic Circuit Analysis, Exercise 3.50 / Fig. 3-25.
+I36 0 left 36
+R8 left 0 8
+R6 left mid 6
+R20 mid 0 20
+R5 mid 0 5
