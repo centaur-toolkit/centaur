@@ -342,21 +342,23 @@ MnaSolution solve_mna(const Circuit& circuit,
     return result;
 }
 
+Expr node_voltage(const std::map<std::string, Expr>& voltages,
+                  const std::string& node) {
+    if (is_ground(node)) {
+        return atom("0");
+    }
+    auto found = voltages.find(node);
+    if (found == voltages.end()) {
+        throw std::runtime_error("node not present in solution: " + node);
+    }
+    return found->second;
+}
+
 Expr voltage_between(const std::map<std::string, Expr>& voltages,
                      const std::string& positive,
                      const std::string& negative) {
-    auto lookup = [&](const std::string& node) -> Expr {
-        if (is_ground(node)) {
-            return atom("0");
-        }
-        auto found = voltages.find(node);
-        if (found == voltages.end()) {
-            throw std::runtime_error("node not present in solution: " + node);
-        }
-        return found->second;
-    };
-
-    return make_sub(lookup(positive), lookup(negative));
+    return make_sub(node_voltage(voltages, positive),
+                    node_voltage(voltages, negative));
 }
 
 } // namespace
@@ -368,6 +370,16 @@ OperatingPoint solve_operating_point(const Circuit& circuit) {
 
 std::map<std::string, Expr> solve_node_voltages(const Circuit& circuit) {
     return solve_operating_point(circuit).voltages;
+}
+
+Expr node_voltage(const OperatingPoint& operating_point, const std::string& node) {
+    return node_voltage(operating_point.voltages, node);
+}
+
+Expr voltage_between(const OperatingPoint& operating_point,
+                     const std::string& positive,
+                     const std::string& negative) {
+    return voltage_between(operating_point.voltages, positive, negative);
 }
 
 TheveninResult solve_thevenin(const Circuit& circuit,

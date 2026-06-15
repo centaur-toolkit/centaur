@@ -30,6 +30,32 @@ add_executable(centaur_tests tests/test_optimizer.cpp)
 target_link_libraries(centaur_tests PRIVATE centaur_core)
 add_test(NAME centaur_tests COMMAND centaur_tests)
 
+add_executable(centaur_chapter4_tests tests/test_chapter4.cpp)
+target_link_libraries(centaur_chapter4_tests PRIVATE centaur_core)
+
+function(add_chapter4_test name)
+    add_test(NAME ${name} COMMAND centaur_chapter4_tests ${name})
+endfunction()
+
+set(CHAPTER4_TEST_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_chapter4.cpp)
+set_property(
+    DIRECTORY
+    APPEND
+    PROPERTY CMAKE_CONFIGURE_DEPENDS ${CHAPTER4_TEST_SOURCE}
+)
+file(
+    STRINGS ${CHAPTER4_TEST_SOURCE}
+    CHAPTER4_TEST_LINES
+    REGEX "^[ \t]*\\{\"exercise_4_[^\"]+\""
+)
+if(NOT CHAPTER4_TEST_LINES)
+    message(FATAL_ERROR "No Chapter 4 tests found in ${CHAPTER4_TEST_SOURCE}")
+endif()
+foreach(line IN LISTS CHAPTER4_TEST_LINES)
+    string(REGEX REPLACE "^[ \t]*\\{\"([^\"]+)\".*" "\\1" chapter4_test "${line}")
+    add_chapter4_test(${chapter4_test})
+endforeach()
+
 add_test(
     NAME exercise_3_20_queries
     COMMAND centaur --solve

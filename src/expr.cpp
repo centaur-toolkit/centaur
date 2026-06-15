@@ -39,6 +39,21 @@ bool parse_plain_number(const std::string& text, double& value) {
     return errno == 0 && end == text.c_str() + text.size();
 }
 
+std::string format_number(double value) {
+    if (std::abs(value) < 1e-12) {
+        value = 0.0;
+    }
+    const double rounded = std::round(value);
+    if (std::abs(value - rounded) < 1e-8) {
+        value = rounded;
+    }
+    std::ostringstream out;
+    out << std::setprecision(12) << value;
+    return out.str();
+}
+
+} // namespace
+
 bool parse_number(const std::string& text, double& value) {
     if (parse_plain_number(text, value)) {
         return true;
@@ -60,6 +75,12 @@ bool parse_number(const std::string& text, double& value) {
     value = numerator / denominator;
     return true;
 }
+
+Expr numeric_atom(double value) {
+    return atom(format_number(value));
+}
+
+namespace {
 
 bool numeric_value(const Expr& expr, double& value) {
     return expr.is_atom() && parse_number(expr.op, value);
@@ -102,23 +123,6 @@ std::string simple_fraction(double value, const std::string& decimal_text) {
     out << best_numerator << '/' << best_denominator;
     const std::string fraction = out.str();
     return fraction.size() < decimal_text.size() ? fraction : std::string{};
-}
-
-std::string format_number(double value) {
-    if (std::abs(value) < 1e-12) {
-        value = 0.0;
-    }
-    const double rounded = std::round(value);
-    if (std::abs(value - rounded) < 1e-8) {
-        value = rounded;
-    }
-    std::ostringstream out;
-    out << std::setprecision(12) << value;
-    return out.str();
-}
-
-Expr numeric_atom(double value) {
-    return atom(format_number(value));
 }
 
 void collect_add_terms(Expr expr, std::vector<Expr>& terms) {

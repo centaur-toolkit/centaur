@@ -26,6 +26,8 @@ bool is_atom_value(const Expr& expr, const std::string& value);
 bool is_zero(const Expr& expr);
 bool is_one(const Expr& expr);
 bool is_commutative(const std::string& op);
+bool parse_number(const std::string& text, double& value);
+Expr numeric_atom(double value);
 
 std::string to_string(const Expr& expr);
 std::string to_result_string(const Expr& expr);

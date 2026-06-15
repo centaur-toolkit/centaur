@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <exception>
 #include <iostream>
-#include <map>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -211,26 +210,6 @@ void solve_and_print_constraints(const std::vector<analog::Constraint>& constrai
     print_constraint_solutions(variable, optimized);
 }
 
-analog::Expr node_voltage(const std::map<std::string, analog::Expr>& voltages,
-                          const std::string& node) {
-    if (node == "0" || node == "gnd" || node == "GND") {
-        return analog::atom("0");
-    }
-    auto found = voltages.find(node);
-    if (found == voltages.end()) {
-        throw std::runtime_error("node not present in operating-point solution: " +
-                                 node);
-    }
-    return found->second;
-}
-
-analog::Expr voltage_between(const std::map<std::string, analog::Expr>& voltages,
-                             const std::string& positive,
-                             const std::string& negative) {
-    return analog::make_sub(node_voltage(voltages, positive),
-                            node_voltage(voltages, negative));
-}
-
 const analog::Component& find_component(const analog::Circuit& circuit,
                                         const std::string& name) {
     for (const auto& component : circuit.components) {
@@ -243,28 +222,32 @@ const analog::Component& find_component(const analog::Circuit& circuit,
 
 analog::Expr resistor_current(
     const analog::Component& component,
-    const std::map<std::string, analog::Expr>& voltages) {
+    const analog::OperatingPoint& operating_point) {
     if (component.type != analog::ComponentType::Resistor) {
         throw std::runtime_error("current query currently supports resistors only: " +
                                  component.name);
     }
-    const auto voltage = voltage_between(voltages, component.positive,
-                                         component.negative);
+    const auto voltage = analog::voltage_between(operating_point,
+                                                 component.positive,
+                                                 component.negative);
     return analog::make_div(voltage, component.value);
 }
 
 analog::Expr source_voltage(const analog::Component& component,
-                            const std::map<std::string, analog::Expr>& voltages) {
+                            const analog::OperatingPoint& operating_point) {
     if (component.type == analog::ComponentType::VoltageSource) {
         return component.value;
     }
     if (component.type == analog::ComponentType::VoltageControlledVoltageSource) {
         return analog::make_mul(
             component.value,
-            voltage_between(voltages, component.control_positive,
-                            component.control_negative));
+            analog::voltage_between(operating_point,
+                                    component.control_positive,
+                                    component.control_negative));
     }
-    return voltage_between(voltages, component.positive, component.negative);
+    return analog::voltage_between(operating_point,
+                                   component.positive,
+                                   component.negative);
 }
 
 analog::Expr component_current(
@@ -272,7 +255,7 @@ analog::Expr component_current(
     const analog::OperatingPoint& operating_point,
     const analog::Circuit& circuit) {
     if (component.type == analog::ComponentType::Resistor) {
-        return resistor_current(component, operating_point.voltages);
+        return resistor_current(component, operating_point);
     }
     if (component.type == analog::ComponentType::CurrentSource) {
         return component.value;
@@ -280,8 +263,9 @@ analog::Expr component_current(
     if (component.type == analog::ComponentType::VoltageControlledCurrentSource) {
         return analog::make_mul(
             component.value,
-            voltage_between(operating_point.voltages, component.control_positive,
-                            component.control_negative));
+            analog::voltage_between(operating_point,
+                                    component.control_positive,
+                                    component.control_negative));
     }
     if (component.type == analog::ComponentType::CurrentControlledCurrentSource) {
         const auto& control = find_component(circuit, component.control_component);
@@ -308,7 +292,7 @@ analog::Expr component_power(
     const analog::Component& component,
     const analog::OperatingPoint& operating_point,
     const analog::Circuit& circuit) {
-    return analog::make_mul(source_voltage(component, operating_point.voltages),
+    return analog::make_mul(source_voltage(component, operating_point),
                             component_current(component, operating_point, circuit));
 }
 
@@ -518,9 +502,9 @@ analog::Expr evaluate_observable(
         value = component_current(component, operating_point, topology_circuit);
         label = "I(" + observable.first + ")";
     } else if (observable.kind == analog::ObservableKind::Voltage) {
-        value = voltage_between(operating_point.voltages,
-                                observable.first,
-                                observable.second);
+        value = analog::voltage_between(operating_point,
+                                        observable.first,
+                                        observable.second);
         label = "V(" + observable.first + "," + observable.second + ")";
     } else if (observable.kind == analog::ObservableKind::Power) {
         const auto& component = find_component(topology_circuit, observable.first);
@@ -672,7 +656,7 @@ void print_operating_point(const analog::Circuit& circuit,
             if (component.type != analog::ComponentType::Resistor) {
                 continue;
             }
-            const auto current = resistor_current(component, voltages);
+            const auto current = resistor_current(component, operating_point);
             const auto best = optimize(current, rules, iterations, explain,
                                        "I(" + component.name + ")");
             std::cout << "I " << component.name << ' ' << component.positive
@@ -683,7 +667,8 @@ void print_operating_point(const analog::Circuit& circuit,
 
     for (const auto& query : queries.ordered) {
         if (query.kind == SolveQueries::Query::Kind::Voltage) {
-            const auto voltage = voltage_between(voltages, query.first, query.second);
+            const auto voltage =
+                analog::voltage_between(operating_point, query.first, query.second);
             const auto best = optimize(voltage, rules, iterations, explain,
                                        "V(" + query.first + "," + query.second + ")");
             std::cout << "V " << query.first << ' ' << query.second << ": "

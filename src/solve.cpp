@@ -1,14 +1,10 @@
 #include "centaur/solve.h"
 
 #include <algorithm>
-#include <cerrno>
 #include <cmath>
 #include <cstddef>
-#include <cstdlib>
-#include <iomanip>
 #include <map>
 #include <optional>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -25,55 +21,6 @@ bool contains_variable(const Expr& expr, const std::string& variable) {
         }
     }
     return false;
-}
-
-bool parse_plain_number(const std::string& text, double& value) {
-    if (text.empty()) {
-        return false;
-    }
-    char* end = nullptr;
-    errno = 0;
-    value = std::strtod(text.c_str(), &end);
-    return errno == 0 && end == text.c_str() + text.size();
-}
-
-bool parse_number(const std::string& text, double& value) {
-    if (parse_plain_number(text, value)) {
-        return true;
-    }
-
-    const auto slash = text.find('/');
-    if (slash == std::string::npos || slash == 0 || slash + 1 == text.size() ||
-        text.find('/', slash + 1) != std::string::npos) {
-        return false;
-    }
-
-    double numerator = 0.0;
-    double denominator = 0.0;
-    if (!parse_plain_number(text.substr(0, slash), numerator) ||
-        !parse_plain_number(text.substr(slash + 1), denominator) ||
-        std::abs(denominator) < 1e-12) {
-        return false;
-    }
-    value = numerator / denominator;
-    return true;
-}
-
-std::string format_number(double value) {
-    if (std::abs(value) < 1e-12) {
-        value = 0.0;
-    }
-    const double rounded = std::round(value);
-    if (std::abs(value - rounded) < 1e-8) {
-        value = rounded;
-    }
-    std::ostringstream out;
-    out << std::setprecision(12) << value;
-    return out.str();
-}
-
-Expr numeric_atom(double value) {
-    return atom(format_number(value));
 }
 
 std::optional<double> evaluate_numeric(const Expr& expr,

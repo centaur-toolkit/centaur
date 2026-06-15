@@ -29,7 +29,8 @@ Implemented today:
 - independent voltage/current sources
 - voltage-controlled voltage/current sources
 - current-controlled current sources using component current references
-- regression examples from Schaum Basic Circuit Analysis exercises 3.20-3.50 and 3.52-3.90
+- regression examples from Schaum Basic Circuit Analysis exercises 3.20-3.50,
+  3.52-3.90, and 4.1-4.67
 
 This is still a prototype. The current solver is linear and DC-oriented; AC
 impedance forms are present in the expression rewrite layer, but not yet a full
@@ -41,6 +42,7 @@ frequency-domain circuit frontend.
 cmake -S . -B build
 cmake --build build
 ctest --test-dir build --output-on-failure
+ctest --test-dir build --output-on-failure -R exercise_4_
 ```
 
 The main executable is:
